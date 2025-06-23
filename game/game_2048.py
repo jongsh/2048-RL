@@ -8,7 +8,7 @@ os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 
 
 class Game2048:
-    def __init__(self, silent_mode=True, store_mode=False):
+    def __init__(self, silent_mode=True):
         self.silent_mode = silent_mode  # 可视化
 
         self.reset()
@@ -21,18 +21,25 @@ class Game2048:
         self.score = 0
         self._add_random_tile()
         self._add_random_tile()
+        info = {
+            "grid": self.grid,
+            "score": self.score,
+            "max_tile": max(max(row) for row in self.grid),
+        }
+        return info
 
     def step(self, action):
         direction_map = {0: "left", 1: "right", 2: "up", 3: "down"}
         direction = direction_map.get(action, None)
-
-        if direction and self._move(direction):
+        moved = self._move(direction)
+        if direction and moved:
             self._add_random_tile()
             if not self.silent_mode:
                 self._render_grid()
 
         done = self._check_game_over()
         info = {
+            "moved": moved,
             "grid": self.grid,
             "score": self.score,
             "max_tile": max(max(row) for row in self.grid),
