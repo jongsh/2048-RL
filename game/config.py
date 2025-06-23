@@ -1,5 +1,5 @@
 # Constants
-GRID_SIZE = 4
+GRID_SIZE = 5
 TILE_SIZE = 100
 FONT_SIZE = 40
 GRID_PADDING = 5
@@ -10,8 +10,8 @@ FONT_COLOR = (119, 110, 101)
 BTN_COLOR = (143, 122, 102)
 
 NEW_TILE_VALUE = {
-    2: 0.8,
-    4: 0.2
+    2: 0.7,
+    4: 0.3,
 }
 
 TILE_COLORS = {
