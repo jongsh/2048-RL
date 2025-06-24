@@ -1,4 +1,5 @@
 import math
+import time
 import gym
 import random
 import numpy as np
@@ -27,7 +28,7 @@ class Game2048Env(gym.Env):
         self.beta = 0.7  # 最大 tile 奖励
         self.gamma = 0.1  # 单调性奖励
         self.delta = 0.1  # 平滑性奖励
-        self.zeta = 0.5  # 非法动作惩罚
+        self.zeta = 1  # 非法动作惩罚
         self.eta = 5  # 游戏结束惩罚
 
     def reset(self):
@@ -52,6 +53,10 @@ class Game2048Env(gym.Env):
         grid_array[grid_array == 0] = 1
         obs = np.log2(grid_array)
         return obs, reward, done, new_info
+
+    def render(self):
+        """渲染游戏界面"""
+        self.game._render_grid()
 
     def _cal_reward(self, new_info, done):
         """计算奖励"""
@@ -121,13 +126,16 @@ class Game2048Env(gym.Env):
 
 
 if __name__ == "__main__":
-    env = Game2048Env()
+    env = Game2048Env(silent_mode=False)
     env.reset()
-    running = True
-    while running:
+    env.render()
+    actions = ["left", "right", "up", "down"]
+    while True:
+        time.sleep(0.8)  # 控制渲染速度
         action = random.randint(0, 3)  # 随机选择一个动作
         obs, reward, done, info = env.step(action)
-        print(f"Action: {action}, Reward: {reward}, Done: {done}")
+        env.render()  # 渲染游戏界面
+        print(f"Action: {actions[action]}, Reward: {reward}, Done: {done}")
         if done:
-            running = False
             print("Game Over!\n\nFinal Info:", info)
+            break
