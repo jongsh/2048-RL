@@ -159,17 +159,17 @@ class Game2048:
         return True
 
 
-def replay(config, grid_history, action_history, delay=1000):
-    print(len(grid_history), len(action_history))
+def replay(config, grid_history, action_history, delay=1500):
     if not grid_history or not action_history:
         print("No replay data available.")
         return
+    action_history.insert(0, -1)  # 初始无动作
 
     game = Game2048(config=config, silent_mode=False)
     screen = game.screen
     clock = game.clock
     font = game.font
-    action_names = {0: "LEFT", 1: "RIGHT", 2: "UP", 3: "DOWN"}
+    action_names = {0: "left", 1: "right", 2: "up", 3: "down"}
 
     # 回放状态
     current_step = 0
@@ -183,9 +183,10 @@ def replay(config, grid_history, action_history, delay=1000):
         screen.fill(config["background_color"])
         game.grid = [row[:] for row in grid_history[current_step]]
         game._render_grid()
-        print(game.grid)
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                print("Exiting replay...")
                 running = False
 
             elif event.type == pygame.KEYDOWN:
@@ -202,15 +203,15 @@ def replay(config, grid_history, action_history, delay=1000):
                 elif event.key == pygame.K_ESCAPE:
                     running = False
 
-        if not paused:
-            current_step = min(current_step + 1, total_steps - 1)  # 更新
+        if not running:
+            break
 
         # 显示回放信息
         info_surface = pygame.Surface((config["width"], 40), pygame.SRCALPHA)
         info_surface.fill((0, 0, 0, 96))
         screen.blit(info_surface, (0, 0))
         step_text = font.render(
-            f"Step: {current_step}/{total_steps-1}  Action: {action_names.get(action_history[current_step-1], 'N/A')}",
+            f"Step: {current_step}/{total_steps-1}  Action: {action_names.get(action_history[current_step], 'N/A')}",
             True,
             (255, 255, 255),
         )
@@ -218,16 +219,17 @@ def replay(config, grid_history, action_history, delay=1000):
         screen.blit(step_text, text_rect)
         pygame.display.flip()
 
-        # 延迟
+        # 控制帧率和延迟
         clock.tick(60)
-        pygame.time.delay(int(delay / speed_factor))
+        pygame.display.flip()
+        if not paused:
+            pygame.time.delay(int(delay / speed_factor))
+            current_step = min(current_step + 1, total_steps - 1)  # 更新
 
         # 检查是否结束
         if current_step >= total_steps - 1 and not paused:
             pygame.display.flip()
             paused = True
-
-    pygame.quit()
 
 
 def main(config=load_config("game2048")):
@@ -259,6 +261,7 @@ def main(config=load_config("game2048")):
         # 事件处理
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                print("Exiting game...")
                 running = False
 
             # 鼠标点击事件
