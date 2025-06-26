@@ -14,9 +14,15 @@ class Game2048:
         self.config = config  # 配置
         self.silent_mode = silent_mode  # 可视化
         self.reset()
+
         if not silent_mode:
             pygame.init()
-            self._init_gui()
+            pygame.display.set_caption("2048")
+            self.screen = pygame.display.set_mode(
+                (self.config["width"], self.config["height"])
+            )
+            self.clock = pygame.time.Clock()
+            self.font = pygame.font.Font(None, self.config["font_size"])
 
     def reset(self):
         self.grid = [
@@ -49,15 +55,6 @@ class Game2048:
             "max_tile": max(max(row) for row in self.grid),
         }
         return done, info
-
-    def _init_gui(self):
-        self.font = pygame.font.Font(None, self.config["font_size"])
-        self.screen = pygame.display.set_mode(
-            (self.config["width"], self.config["height"])
-        )
-        pygame.display.set_caption("2048")
-        self.clock = pygame.time.Clock()
-        self._render_grid()
 
     def _add_random_tile(self):
         candidates = [
@@ -163,18 +160,16 @@ class Game2048:
 
 
 def replay(config, grid_history, action_history, delay=1000):
-    """重播游戏过程"""
-    pygame.init()
-    screen = pygame.display.set_mode((config["width"], config["height"]))
-    pygame.display.set_caption("2048 Replay")
-    clock = pygame.time.Clock()
-    font = pygame.font.Font(None, config["font_size"])
+    print(len(grid_history), len(action_history))
+    if not grid_history or not action_history:
+        print("No replay data available.")
+        return
 
-    # 动作名称映射
+    game = Game2048(config=config, silent_mode=False)
+    screen = game.screen
+    clock = game.clock
+    font = game.font
     action_names = {0: "LEFT", 1: "RIGHT", 2: "UP", 3: "DOWN"}
-
-    # 创建游戏实例用于渲染
-    game = Game2048(silent_mode=False)
 
     # 回放状态
     current_step = 0
@@ -185,58 +180,46 @@ def replay(config, grid_history, action_history, delay=1000):
     # 主循环
     running = True
     while running:
+        screen.fill(config["background_color"])
+        game.grid = [row[:] for row in grid_history[current_step]]
+        game._render_grid()
+        print(game.grid)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
                     paused = not paused  # 空格键暂停/继续
-                elif event.key == pygame.K_RIGHT:
-                    # 右箭头键前进一帧
+                elif paused and event.key == pygame.K_RIGHT:  # 右箭头键前进一帧
                     current_step = min(current_step + 1, total_steps - 1)
-                elif event.key == pygame.K_LEFT:
-                    # 左箭头键后退一帧
+                elif paused and event.key == pygame.K_LEFT:  # 左箭头键后退一帧
                     current_step = max(current_step - 1, 0)
-                elif event.key == pygame.K_UP:
-                    # 上箭头键增加速度
-                    speed_factor = min(speed_factor * 2, 8.0)
-                elif event.key == pygame.K_DOWN:
-                    # 下箭头键减小速度
+                elif event.key == pygame.K_UP:  # 上箭头键增加速度
+                    speed_factor = min(speed_factor * 2, 4.0)
+                elif event.key == pygame.K_DOWN:  # 下箭头键减小速度
                     speed_factor = max(speed_factor / 2, 0.125)
                 elif event.key == pygame.K_ESCAPE:
                     running = False
 
         if not paused:
-            # 更新当前步
-            current_step = min(current_step + 1, total_steps - 1)
-
-        # 设置游戏网格到当前状态
-        game.grid = [row[:] for row in grid_history[current_step]]
-
-        # 渲染网格
-        game._render_grid()
+            current_step = min(current_step + 1, total_steps - 1)  # 更新
 
         # 显示回放信息
         info_surface = pygame.Surface((config["width"], 40), pygame.SRCALPHA)
-        info_surface.fill((0, 0, 0, 128))
+        info_surface.fill((0, 0, 0, 96))
         screen.blit(info_surface, (0, 0))
-
-        # 显示当前步和总步数
         step_text = font.render(
-            f"Step: {current_step}/{total_steps-1}  Action: {action_names.get(action_history[current_step - 1], 'N/A')}",
+            f"Step: {current_step}/{total_steps-1}  Action: {action_names.get(action_history[current_step-1], 'N/A')}",
             True,
             (255, 255, 255),
         )
-        screen.blit(step_text, (10, 10))
+        text_rect = step_text.get_rect(center=(config["width"] // 2, 20))
+        screen.blit(step_text, text_rect)
         pygame.display.flip()
 
-        # 控制播放速度
-        if not paused:
-            clock.tick(30 / speed_factor)
-        else:
-            clock.tick(30)
-
         # 延迟
+        clock.tick(60)
         pygame.time.delay(int(delay / speed_factor))
 
         # 检查是否结束
@@ -247,34 +230,29 @@ def replay(config, grid_history, action_history, delay=1000):
     pygame.quit()
 
 
-def main(config):
+def main(config=load_config("game2048")):
     # pygame 初始化和设置
-    pygame.init()
-    screen = pygame.display.set_mode((config["width"], config["height"]))
-    pygame.display.set_caption("2048")
-    clock = pygame.time.Clock()
-    font = pygame.font.Font(None, config["font_size"])
+    game = Game2048(config=config, silent_mode=False)
+    screen = game.screen
+    clock = game.clock
+    font = game.font
 
-    # 加载最高分
+    # 加载最高分和游戏记录
     high_score = 0
     try:
         with open(config["archive_file"], "r") as f:
             game_data = json.load(f)
             high_score = game_data.get("score", 0)
+            grid_history = game_data.get("grid_history", [])  # 游戏网格记录
+            action_history = game_data.get("action_history", [])  # 动作记录
     except (FileNotFoundError, json.JSONDecodeError):
-        pass
-
-    # 游戏状态
-    game = None
-    state = "menu"  # menu, playing, game_over
-    last_grid_surface = None  # 用于保存结束时的游戏画面
-
-    # 游戏记录
-    game_history = []  # 存储每一步的网格状态
-    action_history = []  # 存储每一步的动作
+        high_score, grid_history, action_history = 0, [], []
 
     # 主循环
+    state = "menu"  # 游戏状态: menu, playing, game_over
+    last_grid_surface = None  # 用于保存结束时的游戏画面
     running = True
+
     while running:
         screen.fill(config["background_color"])
 
@@ -289,76 +267,80 @@ def main(config):
 
                 if state == "menu":
                     main_btn_rect = pygame.Rect(
-                        config["width"] // 2 - 100, config["height"] // 2 - 35, 200, 60
+                        config["width"] // 2 - 100, config["height"] // 2 - 40, 200, 60
+                    )
+                    replay_btn_rect = pygame.Rect(
+                        config["width"] // 2 - 100, config["height"] // 2 + 40, 200, 60
                     )
                     if main_btn_rect.collidepoint(mouse_pos):
                         game = Game2048(silent_mode=False)
                         game._render_grid()
                         state = "playing"
-                        # 重置记录
-                        game_history = [np.array(game.grid)]
-                        action_history = []
-
-                elif state == "game_over":
-                    restart_btn_rect = pygame.Rect(
-                        config["width"] // 2 - 80, config["height"] // 2 + 20, 160, 50
-                    )
-                    replay_btn_rect = pygame.Rect(
-                        config["width"] // 2 - 80, config["height"] // 2 + 80, 160, 50
-                    )
-
-                    if restart_btn_rect.collidepoint(mouse_pos):
-                        game = Game2048(silent_mode=False)
-                        game._render_grid()
-                        state = "playing"
-                        # 重置记录
-                        game_history = [np.array(game.grid)]
+                        grid_history = [game.grid.copy()]
                         action_history = []
 
                     if replay_btn_rect.collidepoint(mouse_pos):
-                        # 开始回放
-                        replay(config, game_history, action_history)
-                        # 回放结束后返回游戏结束状态
+                        replay(config, grid_history, action_history)
+                        state = "menu"
+
+                elif state == "game_over":
+                    restart_btn_rect = pygame.Rect(
+                        config["width"] // 2 - 100, config["height"] // 2, 200, 60
+                    )
+                    replay_btn_rect = pygame.Rect(
+                        config["width"] // 2 - 100, config["height"] // 2 + 80, 200, 60
+                    )
+
+                    if restart_btn_rect.collidepoint(mouse_pos):
+                        game.reset()
+                        game._render_grid()
+                        state = "playing"
+                        grid_history = [game.grid.copy()]
+                        action_history = []
+
+                    if replay_btn_rect.collidepoint(mouse_pos):
+                        replay(config, grid_history, action_history)
                         state = "game_over"
 
             # 键盘事件
             elif event.type == pygame.KEYDOWN and state == "playing":
-                if event.key == pygame.K_LEFT:
-                    action = 0
-                    done, info = game.step(action)
-                    if info["moved"]:
-                        action_history.append(action)
-                        game_history.append(np.array(game.grid))
-                elif event.key == pygame.K_RIGHT:
-                    action = 1
-                    done, info = game.step(action)
-                    if info["moved"]:
-                        action_history.append(action)
-                        game_history.append(np.array(game.grid))
-                elif event.key == pygame.K_UP:
-                    action = 2
-                    done, info = game.step(action)
-                    if info["moved"]:
-                        action_history.append(action)
-                        game_history.append(np.array(game.grid))
-                elif event.key == pygame.K_DOWN:
-                    action = 3
-                    done, info = game.step(action)
-                    if info["moved"]:
-                        action_history.append(action)
-                        game_history.append(np.array(game.grid))
-                elif event.key == pygame.K_ESCAPE:
+                if event.key == pygame.K_ESCAPE:
                     state = "menu"
                     game = None
+
+                else:
+                    action = (
+                        0
+                        if event.key == pygame.K_LEFT
+                        else (
+                            1
+                            if event.key == pygame.K_RIGHT
+                            else (
+                                2
+                                if event.key == pygame.K_UP
+                                else 3 if event.key == pygame.K_DOWN else None
+                            )
+                        )
+                    )
+                    _, info = game.step(action)
+                    if info["moved"]:
+                        action_history.append(action)
+                        grid_history.append(game.grid.copy())
 
         # 游戏逻辑状态处理
         if state == "playing" and game and game._check_game_over():
             if game.score > high_score:
                 high_score = game.score
                 with open(config["archive_file"], "w") as f:
-                    json.dump({"score": high_score}, f)
+                    json.dump(
+                        {
+                            "score": high_score,
+                            "grid_history": grid_history,
+                            "action_history": action_history,
+                        },
+                        f,
+                    )
 
-            # 保存最后画面并进入结束状态
             last_grid_surface = screen.copy()
             state = "game_over"
 
@@ -379,7 +361,7 @@ def main(config):
             replay_btn_rect = pygame.Rect(
                 config["width"] // 2 - 100, config["height"] // 2 + 40, 200, 60
             )
-            pygame.draw.rect(screen, (70, 130, 180), replay_btn_rect, border_radius=8)
+            pygame.draw.rect(screen, (70, 130, 180), replay_btn_rect, border_radius=15)
             replay_text = font.render("REPLAY", True, (255, 255, 255))
             text_rect = replay_text.get_rect(center=replay_btn_rect.center)
             screen.blit(replay_text, text_rect)
@@ -394,10 +376,8 @@ def main(config):
             game._render_grid()
 
         elif state == "game_over" and last_grid_surface:
-            # 显示最后的游戏画面
+            # 绘制游戏结束界面
             screen.blit(last_grid_surface, (0, 0))
-
-            # 半透明遮罩
             overlay = pygame.Surface(
                 (config["width"], config["height"]), pygame.SRCALPHA
             )
@@ -416,7 +396,7 @@ def main(config):
                 config["width"] // 2 - 100, config["height"] // 2, 200, 60
             )
             pygame.draw.rect(
-                screen, config["btn_color"], restart_btn_rect, border_radius=8
+                screen, config["btn_color"], restart_btn_rect, border_radius=15
             )
             restart_text = font.render("RETRY", True, (255, 255, 255))
             text_rect = restart_text.get_rect(center=restart_btn_rect.center)
@@ -426,7 +406,7 @@ def main(config):
             replay_btn_rect = pygame.Rect(
                 config["width"] // 2 - 100, config["height"] // 2 + 80, 200, 60
             )
-            pygame.draw.rect(screen, (70, 130, 180), replay_btn_rect, border_radius=8)
+            pygame.draw.rect(screen, (70, 130, 180), replay_btn_rect, border_radius=15)
             replay_text = font.render("REPLAY", True, (255, 255, 255))
             text_rect = replay_text.get_rect(center=replay_btn_rect.center)
             screen.blit(replay_text, text_rect)
@@ -438,5 +418,4 @@ def main(config):
 
 
 if __name__ == "__main__":
-    config = load_config("game2048")
-    main(config)
+    main()
