@@ -3,6 +3,7 @@ import pygame
 import random
 import json
 import numpy as np
+from copy import deepcopy
 
 from config.config import load_config
 
@@ -44,8 +45,6 @@ class Game2048:
         moved = self._move(direction)
         if direction and moved:
             self._add_random_tile()
-            if not self.silent_mode:
-                self._render_grid()
 
         done = self._check_game_over()
         info = {
@@ -120,8 +119,6 @@ class Game2048:
         for i in range(self.config["grid_size"]):
             for j in range(self.config["grid_size"]):
                 self._render_tile(i, j)
-        pygame.display.flip()
-        self.clock.tick(30)
 
     def _render_tile(self, i, j):
         tile_value = self.grid[i][j]
@@ -160,10 +157,10 @@ class Game2048:
 
 
 def replay(config, grid_history, action_history, delay=1500):
+    """game replay function"""
     if not grid_history or not action_history:
         print("No replay data available.")
         return
-    action_history.insert(0, -1)  # 初始无动作
 
     game = Game2048(config=config, silent_mode=False)
     screen = game.screen
@@ -171,65 +168,78 @@ def replay(config, grid_history, action_history, delay=1500):
     font = game.font
     action_names = {0: "left", 1: "right", 2: "up", 3: "down"}
 
-    # 回放状态
     current_step = 0
     total_steps = len(grid_history)
     paused = False
     speed_factor = 1.0
-
-    # 主循环
     running = True
-    while running:
-        screen.fill(config["background_color"])
-        game.grid = [row[:] for row in grid_history[current_step]]
-        game._render_grid()
+    need_redraw = True
 
+    while running:
+        # render the current step if needed
+        if need_redraw:
+            screen.fill(config["background_color"])
+            game.grid = deepcopy(grid_history[current_step])
+            game._render_grid()
+
+            info_surface = pygame.Surface((config["width"], 40), pygame.SRCALPHA)
+            info_surface.fill((0, 0, 0, 96))
+            screen.blit(info_surface, (0, 0))
+
+            step_text = font.render(
+                f"Step: {current_step}/{total_steps - 1}  Action: {action_names.get(action_history[current_step], 'N/A')}",
+                True,
+                (255, 255, 255),
+            )
+            text_rect = step_text.get_rect(center=(config["width"] // 2, 20))
+            screen.blit(step_text, text_rect)
+
+            pygame.display.flip()
+            need_redraw = False
+
+        # handle events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 print("Exiting replay...")
                 running = False
+                break
 
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
-                    paused = not paused  # 空格键暂停/继续
-                elif paused and event.key == pygame.K_RIGHT:  # 右箭头键前进一帧
-                    current_step = min(current_step + 1, total_steps - 1)
-                elif paused and event.key == pygame.K_LEFT:  # 左箭头键后退一帧
-                    current_step = max(current_step - 1, 0)
-                elif event.key == pygame.K_UP:  # 上箭头键增加速度
-                    speed_factor = min(speed_factor * 2, 4.0)
-                elif event.key == pygame.K_DOWN:  # 下箭头键减小速度
-                    speed_factor = max(speed_factor / 2, 0.125)
+                    paused = not paused
+                    need_redraw = False
+
                 elif event.key == pygame.K_ESCAPE:
                     running = False
 
-        if not running:
-            break
+                elif paused and event.key == pygame.K_RIGHT:  # next step
+                    current_step = min(current_step + 1, total_steps - 1)
+                    need_redraw = True
 
-        # 显示回放信息
-        info_surface = pygame.Surface((config["width"], 40), pygame.SRCALPHA)
-        info_surface.fill((0, 0, 0, 96))
-        screen.blit(info_surface, (0, 0))
-        step_text = font.render(
-            f"Step: {current_step}/{total_steps-1}  Action: {action_names.get(action_history[current_step], 'N/A')}",
-            True,
-            (255, 255, 255),
-        )
-        text_rect = step_text.get_rect(center=(config["width"] // 2, 20))
-        screen.blit(step_text, text_rect)
-        pygame.display.flip()
+                elif paused and event.key == pygame.K_LEFT:  # previous step
+                    current_step = max(current_step - 1, 0)
+                    need_redraw = True
 
-        # 控制帧率和延迟
-        clock.tick(60)
-        pygame.display.flip()
+                elif event.key == pygame.K_UP:
+                    speed_factor = min(speed_factor * 1.2, 5.0)
+
+                elif event.key == pygame.K_DOWN:
+                    speed_factor = max(speed_factor / 1.2, 0.1)
+
+        # update game state during playback
         if not paused:
-            pygame.time.delay(int(delay / speed_factor))
-            current_step = min(current_step + 1, total_steps - 1)  # 更新
+            if current_step < total_steps - 1:
+                pygame.time.delay(int(delay / speed_factor))
+                current_step += 1
+                need_redraw = True
+            else:
+                paused = True
 
-        # 检查是否结束
-        if current_step >= total_steps - 1 and not paused:
-            pygame.display.flip()
-            paused = True
+        # control frame rate
+        if not paused:
+            clock.tick(int(60 * speed_factor))
+        else:
+            clock.tick(240)
 
 
 def main(config=load_config("game2048")):
@@ -279,8 +289,8 @@ def main(config=load_config("game2048")):
                         game = Game2048(silent_mode=False)
                         game._render_grid()
                         state = "playing"
-                        grid_history = [game.grid.copy()]
-                        action_history = []
+                        grid_history = [deepcopy(game.grid)]
+                        action_history = [-1]
 
                     if replay_btn_rect.collidepoint(mouse_pos):
                         replay(config, grid_history, action_history)
@@ -298,8 +308,8 @@ def main(config=load_config("game2048")):
                         game.reset()
                         game._render_grid()
                         state = "playing"
-                        grid_history = [game.grid.copy()]
-                        action_history = []
+                        grid_history = [deepcopy(game.grid)]
+                        action_history = [-1]
 
                     if replay_btn_rect.collidepoint(mouse_pos):
                         replay(config, grid_history, action_history)
@@ -326,9 +336,10 @@ def main(config=load_config("game2048")):
                         )
                     )
                     _, info = game.step(action)
+                    game._render_grid()
                     if info["moved"]:
                         action_history.append(action)
-                        grid_history.append(game.grid.copy())
+                        grid_history.append(deepcopy(game.grid))
 
         # 游戏逻辑状态处理
         if state == "playing" and game and game._check_game_over():

@@ -1,6 +1,7 @@
 import math
 import time
 import gym
+import pygame
 import random
 import numpy as np
 from game.game2048 import Game2048
@@ -24,7 +25,7 @@ class Game2048Env(gym.Env):
         )
         self.done = False
 
-        # 奖励参数
+        # reward parameters
         self.alpha = 0.3  # 空格奖励
         self.beta = 0.7  # 最大 tile 奖励
         self.gamma = 0.1  # 单调性奖励
@@ -33,7 +34,7 @@ class Game2048Env(gym.Env):
         self.eta = 5  # 游戏结束惩罚
 
     def reset(self):
-        """重置环境"""
+        """reset the game environment"""
         self.info = self.game.reset()
         self.done = False
         grid_array = np.array(self.game.grid, dtype=np.float32)
@@ -41,7 +42,7 @@ class Game2048Env(gym.Env):
         return np.log2(grid_array)
 
     def step(self, action):
-        """执行一步操作"""
+        """take a step in the game environment"""
         if self.done:
             raise ValueError("Episode has ended. Please reset the environment.")
 
@@ -56,11 +57,14 @@ class Game2048Env(gym.Env):
         return obs, reward, done, new_info
 
     def render(self):
-        """渲染游戏界面"""
+        """render the game environment"""
+        screen = self.game.screen
+        screen.fill(self.config["background_color"])
         self.game._render_grid()
+        pygame.display.flip()
 
     def _cal_reward(self, new_info, done):
-        """计算奖励"""
+        """calculate the reward based on the new game state"""
         old_info = self.info
         new_grid = np.array(new_info["grid"], dtype=np.int32)
 
@@ -129,16 +133,22 @@ class Game2048Env(gym.Env):
 
 
 if __name__ == "__main__":
-    env = Game2048Env(silent_mode=False)
+    config = load_config("game2048")
+    env = Game2048Env(config=config, silent_mode=False)
     env.reset()
-    env.render()
+
     actions = ["left", "right", "up", "down"]
-    while True:
-        time.sleep(0.8)  # 控制渲染速度
-        action = random.randint(0, 3)  # 随机选择一个动作
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+
+        env.render()
+        action = random.randint(0, 3)
         obs, reward, done, info = env.step(action)
-        env.render()  # 渲染游戏界面
         print(f"Action: {actions[action]}, Reward: {reward}, Done: {done}")
         if done:
             print("Game Over!\n\nFinal Info:", info)
             break
+        time.sleep(1)
