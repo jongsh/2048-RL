@@ -197,6 +197,15 @@ def replay(config, grid_history, action_history, delay=1500):
             pygame.display.flip()
             need_redraw = False
 
+        # update game state during playback
+        if not paused:
+            if current_step < total_steps - 1:
+                pygame.time.delay(int(delay / speed_factor))
+                current_step += 1
+                need_redraw = True
+            else:
+                paused = True
+
         # handle events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -207,6 +216,7 @@ def replay(config, grid_history, action_history, delay=1500):
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
                     paused = not paused
+                    current_step = current_step - 1 if need_redraw else current_step
                     need_redraw = False
 
                 elif event.key == pygame.K_ESCAPE:
@@ -225,15 +235,6 @@ def replay(config, grid_history, action_history, delay=1500):
 
                 elif event.key == pygame.K_DOWN:
                     speed_factor = max(speed_factor / 1.2, 0.1)
-
-        # update game state during playback
-        if not paused:
-            if current_step < total_steps - 1:
-                pygame.time.delay(int(delay / speed_factor))
-                current_step += 1
-                need_redraw = True
-            else:
-                paused = True
 
         # control frame rate
         if not paused:
