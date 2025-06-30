@@ -14,9 +14,10 @@ class MLP(nn.Module):
         return x
 
 
-class MutiHeadAttention(nn.Module):
+class MultiHeadAttention(nn.Module):
     def __init__(self, num_heads, embed_dim, hidden_dim, dropout=0.0, bias=False):
-        super(MutiHeadAttention, self).__init__()
+        super(MultiHeadAttention, self).__init__()
+        assert hidden_dim % num_heads == 0, "hidden_dim must be divisible by num_heads"
         self.num_heads = num_heads
         self.embed_dim = embed_dim
         self.head_dim = hidden_dim // num_heads
@@ -42,13 +43,20 @@ class MutiHeadAttention(nn.Module):
 
         # Compute attention weights and apply softmax
         attn_weights = (q @ k.transpose(-2, -1)) / self.scale  # B, num_heads, L, L
+
         if attn_mask is not None:
-            attn_weights.masked_fill_(attn_mask == 0, float("-inf"))
+            if attn_mask.dim() == 2:  # (L, L)
+                attn_mask = attn_mask.unsqueeze(0).unsqueeze(0)
+            elif attn_mask.dim() == 3:  # (B, L, L)
+                attn_mask = attn_mask.unsqueeze(1)
+            expanded_mask = attn_mask.unsqueeze(0).unsqueeze(1)
+            attn_weights = attn_weights.masked_fill(expanded_mask == 0, float("-inf"))
+
         attn_weights = F.softmax(attn_weights, dim=-1)
-        attn_weights = self.dropout(attn_weights)
+        dropped_attn_weights = self.dropout(attn_weights)
 
         # Compute attention output
-        attn_output = attn_weights @ v  # B, num_heads, L, head_dim
+        attn_output = dropped_attn_weights @ v  # B, num_heads, L, head_dim
         attn_output = (
             attn_output.transpose(1, 2).contiguous().view(batch_size, seq_len, -1)
         )  # B, L, hidden_dim
