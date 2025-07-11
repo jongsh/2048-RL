@@ -4,8 +4,8 @@ import gym
 import pygame
 import random
 import numpy as np
-from game.game2048 import Game2048
-from config.config import load_config
+from envs.game2048 import Game2048
+from configs.config import load_config
 
 
 class Game2048Env(gym.Env):

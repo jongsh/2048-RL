@@ -5,7 +5,7 @@ import json
 import numpy as np
 from copy import deepcopy
 
-from config.config import load_config
+from configs.config import load_config
 
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 

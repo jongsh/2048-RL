@@ -39,4 +39,4 @@ font_colors:
   1024: [255, 255, 255]
   2048: [255, 255, 255]
 
-archive_file: "game/game2048.dat"
+archive_file: "envs/game2048.dat"
