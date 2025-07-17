@@ -1,6 +1,6 @@
 import yaml
 
-config_name_dict = {"game2048": "config/game2048.yaml"}
+config_name_dict = {"game2048": "configs/game2048.yaml"}
 
 
 def load_config(config_name):

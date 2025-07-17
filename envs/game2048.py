@@ -166,7 +166,7 @@ def replay(config, grid_history, action_history, delay=1500):
     screen = game.screen
     clock = game.clock
     font = game.font
-    action_names = {0: "left", 1: "right", 2: "up", 3: "down"}
+    action_names = {0: "<", 1: ">", 2: "^", 3: "v"}
 
     current_step = 0
     total_steps = len(grid_history)
