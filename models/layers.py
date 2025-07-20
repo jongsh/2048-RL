@@ -2,19 +2,52 @@ from torch import nn
 from torch.nn import functional as F
 
 
-class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim):
-        super(MLP, self).__init__()
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, output_dim)
+class ActivationFunction(nn.Module):
+    """Activation function module"""
+
+    def __init__(self, activation):
+        super(ActivationFunction, self).__init__()
+        if activation == "relu":
+            self.activation = nn.ReLU()
+        elif activation == "gelu":
+            self.activation = nn.GELU()
+        elif activation == "tanh":
+            self.activation = nn.Tanh()
+        elif activation == "sigmoid":
+            self.activation = nn.Sigmoid()
+
+        else:
+            raise ValueError(f"Unsupported activation function: {activation}")
 
     def forward(self, x):
-        x = F.gelu(self.fc1(x))
-        x = self.fc2(x)
+        return self.activation(x)
+
+
+class FeedForward(nn.Module):
+    """A simple feed-forward neural network"""
+
+    def __init__(
+        self, input_dim, hidden_dim, output_dim, num_layers, activation, bias=False
+    ):
+        super(FeedForward, self).__init__()
+        layers = []
+        for i in range(num_layers):
+            if i == 0:
+                layers.append(nn.Linear(input_dim, hidden_dim, bias=bias))
+            else:
+                layers.append(nn.Linear(hidden_dim, hidden_dim, bias=bias))
+            layers.append(ActivationFunction(activation))
+        layers.append(nn.Linear(hidden_dim, output_dim, bias=bias))
+        self.network = nn.Sequential(*layers)
+
+    def forward(self, x):
+        x = self.network(x)
         return x
 
 
 class MultiHeadAttention(nn.Module):
+    """Multi-head attention mechanism"""
+
     def __init__(self, num_heads, embed_dim, hidden_dim, dropout=0.0, bias=False):
         super(MultiHeadAttention, self).__init__()
         assert hidden_dim % num_heads == 0, "hidden_dim must be divisible by num_heads"

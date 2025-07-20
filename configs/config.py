@@ -1,6 +1,11 @@
 import yaml
 
-config_name_dict = {"game2048": "configs/game2048.yaml"}
+config_name_dict = {
+    # Configuration for the environment
+    "game2048": "configs/game2048.yaml",
+    # Configuration for the models
+    "mlp_model": "configs/mlp_model.yaml",
+}
 
 
 def load_config(config_name):

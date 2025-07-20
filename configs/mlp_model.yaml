@@ -1,0 +1,16 @@
+# input
+input:
+  input_len: 16
+
+# embedding
+embedding:
+  embedding_dim: 16
+  num_embeddings: 32
+
+# feedforward neural network
+feed_forward:
+  num_layers: 2
+  hidden_dim: 64
+  output_dim: 4
+  activation: "relu"
+  bias: true
