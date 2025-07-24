@@ -10,7 +10,7 @@ embedding:
 # feedforward neural network
 feed_forward:
   num_layers: 2
-  hidden_dim: 64
+  hidden_dim: 32
   output_dim: 4
   activation: "relu"
   bias: true

@@ -4,7 +4,8 @@ config_name_dict = {
     # Configuration for the environment
     "game2048": "configs/game2048.yaml",
     # Configuration for the models
-    "mlp_model": "configs/mlp_model.yaml",
+    "mlp": "configs/mlp.yaml",
+    "resnet": "configs/resnet.yaml",
 }
 
 
