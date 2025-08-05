@@ -1,19 +1,32 @@
 import yaml
 
-config_name_dict = {
-    # Configuration for the environment
-    "game2048": "configs/game2048.yaml",
-    # Configuration for the models
-    "mlp": "configs/mlp.yaml",
-    "resnet": "configs/resnet.yaml",
-}
+register_path = "configs/register.yaml"
+with open(register_path, "r") as file:
+    register = yaml.safe_load(file)
+
+config_path = "configs/config.yaml"
+with open(config_path, "r") as file:
+    config = yaml.safe_load(file)
 
 
-def load_config(config_name):
-    file_path = config_name_dict.get(config_name)
-    if not file_path:
-        raise ValueError(f"Unknown config name: {config_name}")
+def load_config():
+    """Load full configuration from the config file"""
+    ret_config = {}
+    ret_config["public"] = config["public"]
+    ret_config["env"] = config["env"][config["public"]["env"]]
+    ret_config["agent"] = config["agent"][config["public"]["agent"]]
+    ret_config["model"] = config["model"][config["public"]["model"]]
+    # TODO
 
-    with open(file_path, "r") as file:
-        config = yaml.safe_load(file)
-    return config
+    return ret_config
+
+
+def load_single_config(type, config_name):
+    """Load a single specific configuration based on type and name"""
+    if type not in register:
+        raise ValueError(f"Type '{type}' not found in register.yaml")
+    if config_name not in register[type]:
+        raise ValueError(
+            f"Config name '{config_name}' not found under type '{type}' in register.yaml"
+        )
+    return config[type][config_name]

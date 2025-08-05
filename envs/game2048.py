@@ -1,18 +1,30 @@
+# 2048 game implementation
 import os
+import math
 import pygame
 import random
 import json
 import numpy as np
 from copy import deepcopy
 
-from configs.config import load_config
+from configs.config import load_single_config
 
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 
 
 class Game2048:
-    def __init__(self, config=load_config("game2048"), silent_mode=True):
-        self.config = config  # 配置
+    def __init__(self, config=load_single_config("env", "game2048"), silent_mode=True):
+        assert (
+            config["grid_size"] ** 2 == config["grid_num"]
+        ), f"Grid size {config['grid_size']} does not match grid number {config['grid_num']}"
+
+        self.config = config
+        self.config["style"]["width"] = (
+            self.config["grid_size"] * self.config["style"]["tile_size"]
+        )
+        self.config["style"]["height"] = (
+            self.config["grid_size"] * self.config["style"]["tile_size"]
+        )
         self.silent_mode = silent_mode  # 可视化
         self.reset()
 
@@ -20,10 +32,10 @@ class Game2048:
             pygame.init()
             pygame.display.set_caption("2048")
             self.screen = pygame.display.set_mode(
-                (self.config["width"], self.config["height"])
+                (self.config["style"]["width"], self.config["style"]["height"])
             )
             self.clock = pygame.time.Clock()
-            self.font = pygame.font.Font(None, self.config["font_size"])
+            self.font = pygame.font.Font(None, self.config["style"]["font_size"])
 
     def reset(self):
         self.grid = [
@@ -115,7 +127,7 @@ class Game2048:
         return moved
 
     def _render_grid(self):
-        self.screen.fill(self.config["background_color"])
+        self.screen.fill(self.config["style"]["background_color"])
         for i in range(self.config["grid_size"]):
             for j in range(self.config["grid_size"]):
                 self._render_tile(i, j)
@@ -124,21 +136,27 @@ class Game2048:
         tile_value = self.grid[i][j]
         tile_color = self._get_tile_color(tile_value)
         rect = pygame.Rect(
-            j * self.config["tile_size"] + self.config["grid_padding"],
-            i * self.config["tile_size"] + self.config["grid_padding"],
-            self.config["tile_size"] - 2 * self.config["grid_padding"],
-            self.config["tile_size"] - 2 * self.config["grid_padding"],
+            j * self.config["style"]["tile_size"]
+            + self.config["style"]["grid_padding"],
+            i * self.config["style"]["tile_size"]
+            + self.config["style"]["grid_padding"],
+            self.config["style"]["tile_size"]
+            - 2 * self.config["style"]["grid_padding"],
+            self.config["style"]["tile_size"]
+            - 2 * self.config["style"]["grid_padding"],
         )
         pygame.draw.rect(self.screen, tile_color, rect, border_radius=3)
 
         if tile_value != 0:
-            font_color = self.config["font_colors"].get(tile_value, (255, 255, 255))
+            font_color = self.config["style"]["font_colors"].get(
+                tile_value, (255, 255, 255)
+            )
             text = self.font.render(str(tile_value), True, font_color)
             text_rect = text.get_rect(center=rect.center)
             self.screen.blit(text, text_rect)
 
     def _get_tile_color(self, value):
-        return self.config["tile_colors"].get(value, (60, 58, 50))
+        return self.config["style"]["tile_colors"].get(value, (60, 58, 50))
 
     def _check_game_over(self):
         if any(0 in row for row in self.grid):
@@ -163,6 +181,7 @@ def replay(config, grid_history, action_history, delay=1500):
         return
 
     game = Game2048(config=config, silent_mode=False)
+    config = game.config
     screen = game.screen
     clock = game.clock
     font = game.font
@@ -178,11 +197,13 @@ def replay(config, grid_history, action_history, delay=1500):
     while running:
         # render the current step if needed
         if need_redraw:
-            screen.fill(config["background_color"])
+            screen.fill(config["style"]["background_color"])
             game.grid = deepcopy(grid_history[current_step])
             game._render_grid()
 
-            info_surface = pygame.Surface((config["width"], 40), pygame.SRCALPHA)
+            info_surface = pygame.Surface(
+                (config["style"]["width"], 40), pygame.SRCALPHA
+            )
             info_surface.fill((0, 0, 0, 96))
             screen.blit(info_surface, (0, 0))
 
@@ -191,7 +212,7 @@ def replay(config, grid_history, action_history, delay=1500):
                 True,
                 (255, 255, 255),
             )
-            text_rect = step_text.get_rect(center=(config["width"] // 2, 20))
+            text_rect = step_text.get_rect(center=(config["style"]["width"] // 2, 20))
             screen.blit(step_text, text_rect)
 
             pygame.display.flip()
@@ -243,9 +264,10 @@ def replay(config, grid_history, action_history, delay=1500):
             clock.tick(240)
 
 
-def main(config=load_config("game2048")):
+def main(config=load_single_config("env", "game2048")):
     # pygame 初始化和设置
     game = Game2048(config=config, silent_mode=False)
+    config = game.config
     screen = game.screen
     clock = game.clock
     font = game.font
@@ -267,7 +289,7 @@ def main(config=load_config("game2048")):
     running = True
 
     while running:
-        screen.fill(config["background_color"])
+        screen.fill(config["style"]["background_color"])
 
         # 事件处理
         for event in pygame.event.get():
@@ -281,10 +303,16 @@ def main(config=load_config("game2048")):
 
                 if state == "menu":
                     main_btn_rect = pygame.Rect(
-                        config["width"] // 2 - 100, config["height"] // 2 - 40, 200, 60
+                        config["style"]["width"] // 2 - 100,
+                        config["style"]["height"] // 2 - 40,
+                        200,
+                        60,
                     )
                     replay_btn_rect = pygame.Rect(
-                        config["width"] // 2 - 100, config["height"] // 2 + 40, 200, 60
+                        config["style"]["width"] // 2 - 100,
+                        config["style"]["height"] // 2 + 40,
+                        200,
+                        60,
                     )
                     if main_btn_rect.collidepoint(mouse_pos):
                         game = Game2048(silent_mode=False)
@@ -299,10 +327,16 @@ def main(config=load_config("game2048")):
 
                 elif state == "game_over":
                     restart_btn_rect = pygame.Rect(
-                        config["width"] // 2 - 100, config["height"] // 2, 200, 60
+                        config["style"]["width"] // 2 - 100,
+                        config["style"]["height"] // 2,
+                        200,
+                        60,
                     )
                     replay_btn_rect = pygame.Rect(
-                        config["width"] // 2 - 100, config["height"] // 2 + 80, 200, 60
+                        config["style"]["width"] // 2 - 100,
+                        config["style"]["height"] // 2 + 80,
+                        200,
+                        60,
                     )
 
                     if restart_btn_rect.collidepoint(mouse_pos):
@@ -363,10 +397,13 @@ def main(config=load_config("game2048")):
         if state == "menu":
             # 绘制菜单按钮
             main_btn_rect = pygame.Rect(
-                config["width"] // 2 - 100, config["height"] // 2 - 40, 200, 60
+                config["style"]["width"] // 2 - 100,
+                config["style"]["height"] // 2 - 40,
+                200,
+                60,
             )
             pygame.draw.rect(
-                screen, config["btn_color"], main_btn_rect, border_radius=15
+                screen, config["style"]["btn_color"], main_btn_rect, border_radius=15
             )
             btn_text = font.render("START", True, (255, 255, 255))
             text_rect = btn_text.get_rect(center=main_btn_rect.center)
@@ -374,7 +411,10 @@ def main(config=load_config("game2048")):
 
             # 回放按钮
             replay_btn_rect = pygame.Rect(
-                config["width"] // 2 - 100, config["height"] // 2 + 40, 200, 60
+                config["style"]["width"] // 2 - 100,
+                config["style"]["height"] // 2 + 40,
+                200,
+                60,
             )
             pygame.draw.rect(screen, (70, 130, 180), replay_btn_rect, border_radius=15)
             replay_text = font.render("REPLAY", True, (255, 255, 255))
@@ -383,7 +423,7 @@ def main(config=load_config("game2048")):
 
             # 显示高分
             score_text = font.render(
-                f"High Score: {high_score}", True, config["font_color"]
+                f"High Score: {high_score}", True, config["style"]["font_color"]
             )
             screen.blit(score_text, (20, 20))
 
@@ -394,7 +434,7 @@ def main(config=load_config("game2048")):
             # 绘制游戏结束界面
             screen.blit(last_grid_surface, (0, 0))
             overlay = pygame.Surface(
-                (config["width"], config["height"]), pygame.SRCALPHA
+                (config["style"]["width"], config["style"]["height"]), pygame.SRCALPHA
             )
             overlay.fill((255, 255, 255, 128))
             screen.blit(overlay, (0, 0))
@@ -402,16 +442,22 @@ def main(config=load_config("game2048")):
             # 游戏结束信息
             text = font.render(f"Final Score: {game.score}", True, (255, 87, 87))
             text_rect = text.get_rect(
-                center=(config["width"] // 2, config["height"] // 2 - 60)
+                center=(
+                    config["style"]["width"] // 2,
+                    config["style"]["height"] // 2 - 60,
+                )
             )
             screen.blit(text, text_rect)
 
             # 重新开始按钮
             restart_btn_rect = pygame.Rect(
-                config["width"] // 2 - 100, config["height"] // 2, 200, 60
+                config["style"]["width"] // 2 - 100,
+                config["style"]["height"] // 2,
+                200,
+                60,
             )
             pygame.draw.rect(
-                screen, config["btn_color"], restart_btn_rect, border_radius=15
+                screen, config["style"]["btn_color"], restart_btn_rect, border_radius=15
             )
             restart_text = font.render("RETRY", True, (255, 255, 255))
             text_rect = restart_text.get_rect(center=restart_btn_rect.center)
@@ -419,7 +465,10 @@ def main(config=load_config("game2048")):
 
             # 回放按钮
             replay_btn_rect = pygame.Rect(
-                config["width"] // 2 - 100, config["height"] // 2 + 80, 200, 60
+                config["style"]["width"] // 2 - 100,
+                config["style"]["height"] // 2 + 80,
+                200,
+                60,
             )
             pygame.draw.rect(screen, (70, 130, 180), replay_btn_rect, border_radius=15)
             replay_text = font.render("REPLAY", True, (255, 255, 255))

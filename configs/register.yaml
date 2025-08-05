@@ -1,0 +1,9 @@
+env:
+  - game2048
+
+agent:
+  - dqn
+
+model:
+  - mlp
+  - resnet

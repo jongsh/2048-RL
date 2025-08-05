@@ -1,3 +1,4 @@
+# 2048 game environment for reinforcement learning
 import math
 import time
 import gym
@@ -5,16 +6,17 @@ import pygame
 import random
 import numpy as np
 from envs.game2048 import Game2048
-from configs.config import load_config
+from configs.config import load_single_config
 
 
 class Game2048Env(gym.Env):
-    def __init__(self, config=load_config("game2048"), silent_mode=True):
+    def __init__(self, config=load_single_config("env", "game2048"), silent_mode=True):
         super(Game2048Env, self).__init__()
-        self.config = config
-        self.game = Game2048(config=config, silent_mode=silent_mode)
 
-        # 游戏状态
+        self.game = Game2048(config=config, silent_mode=silent_mode)
+        self.config = self.game.config
+
+        # game state
         self.info = self.game.reset()
         self.action_space = gym.spaces.Discrete(4)  # 0: left, 1: right, 2: up, 3: down
         self.observation_space = gym.spaces.Box(
@@ -26,12 +28,12 @@ class Game2048Env(gym.Env):
         self.done = False
 
         # reward parameters
-        self.alpha = 0.3  # 空格奖励
-        self.beta = 0.7  # 最大 tile 奖励
-        self.gamma = 0.1  # 单调性奖励
-        self.delta = 0.1  # 平滑性奖励
-        self.zeta = 1  # 非法动作惩罚
-        self.eta = 5  # 游戏结束惩罚
+        self.alpha = 0.3  # space reward
+        self.beta = 0.7  # max tile reward
+        self.gamma = 0.1  # monotonicity reward
+        self.delta = 0.1  # smoothness reward
+        self.zeta = 1  # invalid action penalty
+        self.eta = 5  # game over penalty
 
     def reset(self):
         """reset the game environment"""
@@ -59,7 +61,7 @@ class Game2048Env(gym.Env):
     def render(self):
         """render the game environment"""
         screen = self.game.screen
-        screen.fill(self.config["background_color"])
+        screen.fill(self.config["style"]["background_color"])
         self.game._render_grid()
         pygame.display.flip()
 
@@ -133,22 +135,24 @@ class Game2048Env(gym.Env):
 
 
 if __name__ == "__main__":
-    config = load_config("game2048")
+    config = load_single_config("env", "game2048")
     env = Game2048Env(config=config, silent_mode=False)
     env.reset()
+    env.render()
 
     actions = ["left", "right", "up", "down"]
     running = True
     while running:
+        time.sleep(1.5)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
 
-        env.render()
         action = random.randint(0, 3)
         obs, reward, done, info = env.step(action)
         print(f"Action: {actions[action]}, Reward: {reward}, Done: {done}")
+        env.render()
+
         if done:
             print("Game Over!\n\nFinal Info:", info)
             break
-        time.sleep(1)

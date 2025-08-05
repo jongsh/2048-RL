@@ -3,22 +3,24 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torchinfo import summary
 
-from configs.config import load_config
-from models.layers import FeedForward, ActivationFunction
+from configs.config import load_single_config
+from models.layers import ActivationFunction
 
 
 class ResidualBlock(nn.Module):
     """Residual block for ResNet"""
 
-    def __init__(self, config=load_config("resnet")):
-        in_channels = config["residual_block"]["in_channels"]
-        out_channels = config["residual_block"]["out_channels"]
-        stride = config["residual_block"]["stride"]
-        padding = config["residual_block"]["padding"]
-        activation = config["residual_block"]["activation"]
+    def __init__(self, config=load_single_config("model", "resnet")):
+        super(ResidualBlock, self).__init__()
+
+        self.config = config
+        in_channels = self.config["residual_block"]["in_channels"]
+        out_channels = self.config["residual_block"]["out_channels"]
+        stride = self.config["residual_block"]["stride"]
+        padding = self.config["residual_block"]["padding"]
+        activation = self.config["residual_block"]["activation"]
         kernel_size = config["residual_block"]["kernel_size"]
 
-        super(ResidualBlock, self).__init__()
         self.conv1 = nn.Conv2d(
             in_channels,
             out_channels,
@@ -28,21 +30,24 @@ class ResidualBlock(nn.Module):
         )
         self.bn1 = nn.BatchNorm2d(out_channels)
         self.conv2 = nn.Conv2d(
-            in_channels,
+            out_channels,
             out_channels,
             kernel_size=kernel_size,
-            stride=stride,
+            stride=1,
             padding=padding,
         )
         self.bn2 = nn.BatchNorm2d(out_channels)
         self.activation = ActivationFunction(activation)
 
-        self.shortcut = nn.Sequential()
-        if stride != 1 or in_channels != out_channels:
-            self.shortcut = nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride),
+        if in_channels != out_channels or stride != 1:
+            self.downsample = nn.Sequential(
+                nn.Conv2d(
+                    in_channels, out_channels, kernel_size=1, stride=stride, bias=False
+                ),
                 nn.BatchNorm2d(out_channels),
             )
+        else:
+            self.downsample = nn.Identity()
 
     def forward(self, x):
         out = self.conv1(x)
@@ -50,7 +55,7 @@ class ResidualBlock(nn.Module):
         out = self.activation(out)
         out = self.conv2(out)
         out = self.bn2(out)
-        out += self.shortcut(x)
+        out += self.downsample(x)
         out = self.activation(out)
         return out
 
@@ -58,13 +63,17 @@ class ResidualBlock(nn.Module):
 class ResNetBase(nn.Module):
     """Base class for ResNet models"""
 
-    def __init__(self, config=load_config("resnet")):
+    def __init__(self, config=load_single_config("model", "resnet")):
+        assert (
+            config["input_len"] == config["input_width"] * config["input_height"]
+        ), f"Input length {config['input_len']} does not match width {config['input_width']} * height {config['input_height']}"
+
         super(ResNetBase, self).__init__()
-        self.input_height = config["input"]["input_height"]
-        self.input_width = config["input"]["input_width"]
+        self.input_height = config["input_height"]
+        self.input_width = config["input_width"]
         self.embed = nn.Embedding(
-            num_embeddings=config["embedding"]["num_embeddings"],
-            embedding_dim=config["embedding"]["embedding_dim"],
+            num_embeddings=config["num_embeddings"],
+            embedding_dim=config["embedding_dim"],
         )
         self.residual_blocks = nn.Sequential(
             *[
@@ -75,7 +84,7 @@ class ResNetBase(nn.Module):
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(
             config["residual_block"]["out_channels"],
-            config["output"]["output_dim"],
+            config["output_dim"],
         )
 
     def forward(self, x):
@@ -85,7 +94,7 @@ class ResNetBase(nn.Module):
         x = x.permute(0, 3, 1, 2)  # (B, D, H, W)
         x = self.residual_blocks(x)  # (B, D, H, W)
         x = self.avg_pool(x)  # (B, D, 1, 1)
-        x = x.view(B, -1)
+        x = x.view(B, -1)  # (B, D)
         x = self.fc(x)  # (B, output_dim)
         return x
 
@@ -93,7 +102,7 @@ class ResNetBase(nn.Module):
 class ResNetPolicy(ResNetBase):
     """ResNet model for policy"""
 
-    def __init__(self, config=load_config("resnet")):
+    def __init__(self, config=load_single_config("model", "resnet")):
         super(ResNetPolicy, self).__init__(config)
 
     def forward(self, x):
@@ -105,7 +114,7 @@ class ResNetPolicy(ResNetBase):
 class ResNetValue(ResNetBase):
     """ResNet model for value function"""
 
-    def __init__(self, config=load_config("resnet")):
+    def __init__(self, config=load_single_config("model", "resnet")):
         super(ResNetValue, self).__init__(config)
 
     def forward(self, x):

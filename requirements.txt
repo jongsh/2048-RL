@@ -1,0 +1,6 @@
+gym
+numpy
+pygame
+PyYAML
+torch
+torchinfo
