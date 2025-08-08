@@ -76,17 +76,11 @@ class Game2048Env(gym.Env):
 
         # 空格比例奖励
         num_empty = np.sum(new_grid == 0)
-        empty_reward = self.alpha * (
-            num_empty / (self.config["grid_size"] * self.config["grid_size"])
-        )
+        empty_reward = self.alpha * (num_empty / (self.config["grid_size"] * self.config["grid_size"]))
 
         # 最大 tile 奖励
         old_max, new_max = old_info["max_tile"], new_info["max_tile"]
-        max_reward = (
-            self.beta * max(0, math.log2(new_max) - math.log2(old_max))
-            if new_max > old_max
-            else 0
-        )
+        max_reward = self.beta * max(0, math.log2(new_max) - math.log2(old_max)) if new_max > old_max else 0
 
         # 单调性奖励
         mono_reward = self.gamma * self._monotonicity(new_grid)
@@ -100,15 +94,7 @@ class Game2048Env(gym.Env):
         # 游戏结束惩罚
         done_reward = -self.eta if done else 0
 
-        return (
-            merge_reward
-            + empty_reward
-            + max_reward
-            + mono_reward
-            + smooth_reward
-            + invalid_reward
-            + done_reward
-        )
+        return merge_reward + empty_reward + max_reward + mono_reward + smooth_reward + invalid_reward + done_reward
 
     def _monotonicity(self, grid):
         """计算单调性"""

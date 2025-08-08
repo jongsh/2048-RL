@@ -5,14 +5,30 @@ public:
   env: game2048
   agent: dqn
   model: mlp
-
+  device: cpu
 
 # ============ RL Agent Configuration ============
 agent:
   dqn:
+    gamma: 0.95
+    action_space: *action_dim
+    strategy: online
+    use_target_network: true
+    update_freq: 1000
+    online:
+      start_epsilon: 1.0
+      end_epsilon: 0.05
+      epsilon_decay: 10000
+    offline:
+      action_logit:
+        - 0.25
+        - 0.25
+        - 0.25
+        - 0.25
+      
+
     
-
-
+    
 
 
 
@@ -55,7 +71,6 @@ env:
   game2048:
     grid_num: *env_dim
     grid_size: 4
-    action_dim: *action_dim
     new_tile_value:
       2: 0.7
       4: 0.3

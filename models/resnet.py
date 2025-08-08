@@ -41,9 +41,7 @@ class ResidualBlock(nn.Module):
 
         if in_channels != out_channels or stride != 1:
             self.downsample = nn.Sequential(
-                nn.Conv2d(
-                    in_channels, out_channels, kernel_size=1, stride=stride, bias=False
-                ),
+                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False),
                 nn.BatchNorm2d(out_channels),
             )
         else:
@@ -76,10 +74,7 @@ class ResNetBase(nn.Module):
             embedding_dim=config["embedding_dim"],
         )
         self.residual_blocks = nn.Sequential(
-            *[
-                ResidualBlock(config)
-                for _ in range(config["residual_block"]["num_blocks"])
-            ]
+            *[ResidualBlock(config) for _ in range(config["residual_block"]["num_blocks"])]
         )
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(

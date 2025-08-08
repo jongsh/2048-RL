@@ -19,28 +19,20 @@ class Game2048:
         ), f"Grid size {config['grid_size']} does not match grid number {config['grid_num']}"
 
         self.config = config
-        self.config["style"]["width"] = (
-            self.config["grid_size"] * self.config["style"]["tile_size"]
-        )
-        self.config["style"]["height"] = (
-            self.config["grid_size"] * self.config["style"]["tile_size"]
-        )
+        self.config["style"]["width"] = self.config["grid_size"] * self.config["style"]["tile_size"]
+        self.config["style"]["height"] = self.config["grid_size"] * self.config["style"]["tile_size"]
         self.silent_mode = silent_mode  # 可视化
         self.reset()
 
         if not silent_mode:
             pygame.init()
             pygame.display.set_caption("2048")
-            self.screen = pygame.display.set_mode(
-                (self.config["style"]["width"], self.config["style"]["height"])
-            )
+            self.screen = pygame.display.set_mode((self.config["style"]["width"], self.config["style"]["height"]))
             self.clock = pygame.time.Clock()
             self.font = pygame.font.Font(None, self.config["style"]["font_size"])
 
     def reset(self):
-        self.grid = [
-            [0] * self.config["grid_size"] for _ in range(self.config["grid_size"])
-        ]
+        self.grid = [[0] * self.config["grid_size"] for _ in range(self.config["grid_size"])]
         self.score = 0
         self._add_random_tile()
         self._add_random_tile()
@@ -136,21 +128,15 @@ class Game2048:
         tile_value = self.grid[i][j]
         tile_color = self._get_tile_color(tile_value)
         rect = pygame.Rect(
-            j * self.config["style"]["tile_size"]
-            + self.config["style"]["grid_padding"],
-            i * self.config["style"]["tile_size"]
-            + self.config["style"]["grid_padding"],
-            self.config["style"]["tile_size"]
-            - 2 * self.config["style"]["grid_padding"],
-            self.config["style"]["tile_size"]
-            - 2 * self.config["style"]["grid_padding"],
+            j * self.config["style"]["tile_size"] + self.config["style"]["grid_padding"],
+            i * self.config["style"]["tile_size"] + self.config["style"]["grid_padding"],
+            self.config["style"]["tile_size"] - 2 * self.config["style"]["grid_padding"],
+            self.config["style"]["tile_size"] - 2 * self.config["style"]["grid_padding"],
         )
         pygame.draw.rect(self.screen, tile_color, rect, border_radius=3)
 
         if tile_value != 0:
-            font_color = self.config["style"]["font_colors"].get(
-                tile_value, (255, 255, 255)
-            )
+            font_color = self.config["style"]["font_colors"].get(tile_value, (255, 255, 255))
             text = self.font.render(str(tile_value), True, font_color)
             text_rect = text.get_rect(center=rect.center)
             self.screen.blit(text, text_rect)
@@ -163,12 +149,8 @@ class Game2048:
             return False
         for i in range(self.config["grid_size"]):
             for j in range(self.config["grid_size"]):
-                if (
-                    j + 1 < self.config["grid_size"]
-                    and self.grid[i][j] == self.grid[i][j + 1]
-                ) or (
-                    i + 1 < self.config["grid_size"]
-                    and self.grid[i][j] == self.grid[i + 1][j]
+                if (j + 1 < self.config["grid_size"] and self.grid[i][j] == self.grid[i][j + 1]) or (
+                    i + 1 < self.config["grid_size"] and self.grid[i][j] == self.grid[i + 1][j]
                 ):
                     return False
         return True
@@ -201,9 +183,7 @@ def replay(config, grid_history, action_history, delay=1500):
             game.grid = deepcopy(grid_history[current_step])
             game._render_grid()
 
-            info_surface = pygame.Surface(
-                (config["style"]["width"], 40), pygame.SRCALPHA
-            )
+            info_surface = pygame.Surface((config["style"]["width"], 40), pygame.SRCALPHA)
             info_surface.fill((0, 0, 0, 96))
             screen.blit(info_surface, (0, 0))
 
@@ -363,11 +343,7 @@ def main(config=load_single_config("env", "game2048")):
                         else (
                             1
                             if event.key == pygame.K_RIGHT
-                            else (
-                                2
-                                if event.key == pygame.K_UP
-                                else 3 if event.key == pygame.K_DOWN else None
-                            )
+                            else (2 if event.key == pygame.K_UP else 3 if event.key == pygame.K_DOWN else None)
                         )
                     )
                     _, info = game.step(action)
@@ -402,9 +378,7 @@ def main(config=load_single_config("env", "game2048")):
                 200,
                 60,
             )
-            pygame.draw.rect(
-                screen, config["style"]["btn_color"], main_btn_rect, border_radius=15
-            )
+            pygame.draw.rect(screen, config["style"]["btn_color"], main_btn_rect, border_radius=15)
             btn_text = font.render("START", True, (255, 255, 255))
             text_rect = btn_text.get_rect(center=main_btn_rect.center)
             screen.blit(btn_text, text_rect)
@@ -422,9 +396,7 @@ def main(config=load_single_config("env", "game2048")):
             screen.blit(replay_text, text_rect)
 
             # 显示高分
-            score_text = font.render(
-                f"High Score: {high_score}", True, config["style"]["font_color"]
-            )
+            score_text = font.render(f"High Score: {high_score}", True, config["style"]["font_color"])
             screen.blit(score_text, (20, 20))
 
         elif state == "playing":
@@ -433,9 +405,7 @@ def main(config=load_single_config("env", "game2048")):
         elif state == "game_over" and last_grid_surface:
             # 绘制游戏结束界面
             screen.blit(last_grid_surface, (0, 0))
-            overlay = pygame.Surface(
-                (config["style"]["width"], config["style"]["height"]), pygame.SRCALPHA
-            )
+            overlay = pygame.Surface((config["style"]["width"], config["style"]["height"]), pygame.SRCALPHA)
             overlay.fill((255, 255, 255, 128))
             screen.blit(overlay, (0, 0))
 
@@ -456,9 +426,7 @@ def main(config=load_single_config("env", "game2048")):
                 200,
                 60,
             )
-            pygame.draw.rect(
-                screen, config["style"]["btn_color"], restart_btn_rect, border_radius=15
-            )
+            pygame.draw.rect(screen, config["style"]["btn_color"], restart_btn_rect, border_radius=15)
             restart_text = font.render("RETRY", True, (255, 255, 255))
             text_rect = restart_text.get_rect(center=restart_btn_rect.center)
             screen.blit(restart_text, text_rect)

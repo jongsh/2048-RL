@@ -1,3 +1,4 @@
+import torch
 from abc import ABC, abstractmethod
 
 
@@ -11,6 +12,21 @@ class BaseAgent(ABC):
         """
         Initialize the agent.
         This method can be overridden by subclasses to set up specific parameters or networks.
+        """
+        pass
+
+    def _torch(self, x, dtype):
+        """
+        Convert input to a PyTorch tensor.
+        """
+        return torch.tensor(x, dtype=dtype, device=self.device)
+
+    @abstractmethod
+    def sample_actions(self, states):
+        """
+        Sample actions given a batch of states.
+        Returns a tensor of actions.
+        pass
         """
         pass
 
