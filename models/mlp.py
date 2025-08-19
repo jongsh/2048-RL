@@ -12,6 +12,7 @@ class MLPBase(torch.nn.Module):
 
     def __init__(self, config=load_single_config("model", "mlp")):
         self.config = config
+
         super(MLPBase, self).__init__()
         self.embed = nn.Embedding(
             num_embeddings=self.config["num_embeddings"],

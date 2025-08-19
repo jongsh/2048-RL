@@ -7,14 +7,18 @@ public:
   model: mlp
   device: cpu
 
+
 # ============ RL Agent Configuration ============
 agent:
   dqn:
     gamma: 0.95
     action_space: *action_dim
     strategy: online
-    use_target_network: true
-    update_freq: 1000
+    target_network:
+      use: true
+      update_step: 1000
+      update_method: hard  # hard or soft
+      update_soft_tau: 0.8
     online:
       start_epsilon: 1.0
       end_epsilon: 0.05
@@ -26,11 +30,6 @@ agent:
         - 0.25
         - 0.25
       
-
-    
-    
-
-
 
 # ============ Deep Learning Model Configuration ============
 model:
@@ -63,7 +62,6 @@ model:
       activation: "relu"
     output_dim: *action_dim
       
-
 
 # ============ Environment Configuration ============
 env:
@@ -107,3 +105,16 @@ env:
         1024: [255, 255, 255]
         2048: [255, 255, 255]
     archive_file: envs/game2048.dat
+
+
+# ============ Trainer Configuration ============
+trainer:
+  base:
+    batch_size: 16
+    replay_buffer_size: 100000
+    replay_buffer_size_min: 100
+    learning_rate: 2e-4
+    optimizer: Adam
+    log_interval: 1000
+    save_interval: 10000
+    output_path: "outputs/"

@@ -19,7 +19,10 @@ class BaseAgent(ABC):
         """
         Convert input to a PyTorch tensor.
         """
-        return torch.tensor(x, dtype=dtype, device=self.device)
+        if isinstance(x, torch.Tensor):
+            return x.clone().detach().to(dtype=dtype, device=self.device)
+        else:
+            return torch.tensor(x, dtype=dtype, device=self.device)
 
     @abstractmethod
     def sample_actions(self, states):
