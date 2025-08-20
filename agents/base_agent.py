@@ -25,11 +25,13 @@ class BaseAgent(ABC):
             return torch.tensor(x, dtype=dtype, device=self.device)
 
     @abstractmethod
-    def sample_actions(self, states):
-        """
-        Sample actions given a batch of states.
-        Returns a tensor of actions.
+    def get_model(self):
         pass
+
+    @abstractmethod
+    def sample_action(self):
+        """
+        Sample action given a state.
         """
         pass
 
@@ -45,5 +47,12 @@ class BaseAgent(ABC):
     def update(self):
         """
         Compute loss and update the policy/value network.
+        """
+        pass
+
+    @abstractmethod
+    def save(self):
+        """
+        Save the agent's model to the specified path.
         """
         pass

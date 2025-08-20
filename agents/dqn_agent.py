@@ -1,11 +1,12 @@
 import torch
 import math
+import random
 
-from torch import distributions as dist
 
 from configs.config import load_single_config
 from agents.base_agent import BaseAgent
-from models import *
+from models.mlp import MLPValue
+from models.resnet import ResNetValue
 
 
 class DQNAgent(BaseAgent):
@@ -58,17 +59,23 @@ class DQNAgent(BaseAgent):
         elif config["model"] == "resnet":
             return ResNetValue()
 
-    def sample_actions(self, states):
+    def get_model(self):
+        return self.q_network
+
+    def sample_action(self, state):
         if self.strategy == "offline":
-            categorical_dist = dist.Categorical(probs=self.sample_action_logit)
-            actions = categorical_dist.sample((len(states),))
-            return actions
+            action = random.choices(
+                range(self.action_space),
+                weights=self.sample_action_logit,
+                k=1,
+            )[0]
+            return action
         elif self.strategy == "online":
-            if torch.rand(1).item() < self.epsilon:
-                actions = torch.randint(0, self.action_space, (len(states),))
+            if random.random() < self.epsilon:
+                action = random.randint(0, self.action_space - 1)
             else:
                 with torch.no_grad():
-                    actions = self.q_network(self._torch(states, dtype=torch.int32)).argmax(dim=1)
+                    action = self.q_network(self._torch(state, dtype=torch.int32)).argmax(dim=1).item()
             self.epsilon = (
                 self.epsilon_min
                 + (self.epsilon_max - self.epsilon_min)
@@ -76,7 +83,7 @@ class DQNAgent(BaseAgent):
                 / 2
             )
             self.steps_done += len(states)
-            return actions
+            return action
 
         else:
             raise ValueError(f"Invalid strategy type {self.config['strategy']}.")
@@ -131,6 +138,24 @@ class DQNAgent(BaseAgent):
                 self._update_target_network()
                 self.target_network_update_count = 0
 
+        return loss.item()
+
+    def save(self, dir_path):
+        """Save the agent's model to the specified path"""
+        q_network_path = f"{dir_path}/q_network.pth"
+        torch.save(self.q_network.state_dict(), q_network_path)
+        if self.target_network is not None:
+            target_network_path = f"{dir_path}/target_network.pth"
+            torch.save(self.target_network.state_dict(), target_network_path)
+
+    def load(self, dir_path):
+        """Load the agent's model from the specified path"""
+        q_network_path = f"{dir_path}/q_network.pth"
+        self.q_network.load_state_dict(torch.load(q_network_path, map_location=self.device))
+        if self.target_network is not None:
+            target_network_path = f"{dir_path}/target_network.pth"
+            self.target_network.load_state_dict(torch.load(target_network_path, map_location=self.device))
+
 
 if __name__ == "__main__":
     agent = DQNAgent()
@@ -141,5 +166,6 @@ if __name__ == "__main__":
     dones = torch.randint(0, 2, (5,))  # Example done flags
     optimizer = torch.optim.Adam(agent.q_network.parameters(), lr=0.001)
     loss_fn = torch.nn.MSELoss()
+    print(agent.sample_action(states[0]))  # Sample an action
     agent.update(states, actions, rewards, next_states, dones, optimizer, loss_fn)
     print("DQN Agent updated successfully.")

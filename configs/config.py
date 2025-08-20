@@ -12,14 +12,11 @@ with open(config_path, "r") as file:
 def load_config():
     """Load full configuration from the config file"""
     ret_config = {}
-    for key, value in config["public"].items():
-        if key not in ret_config:
-            ret_config[key] = value
-
+    ret_config["public"] = config["public"]
     ret_config["env"] = config["env"][config["public"]["env"]]
     ret_config["agent"] = config["agent"][config["public"]["agent"]]
     ret_config["model"] = config["model"][config["public"]["model"]]
-    # TODO
+    ret_config["trainer"] = config["trainer"][config["public"]["trainer"]]
 
     return ret_config
 
