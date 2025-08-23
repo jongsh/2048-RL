@@ -3,23 +3,23 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torchinfo import summary
 
-from configs.config import load_single_config
+from configs.config import Configuration
 from models.layers import ActivationFunction
 
 
 class ResidualBlock(nn.Module):
     """Residual block for ResNet"""
 
-    def __init__(self, config=load_single_config("model", "resnet")):
+    def __init__(self, config: Configuration = Configuration()):
         super(ResidualBlock, self).__init__()
 
-        self.config = config
-        in_channels = self.config["residual_block"]["in_channels"]
-        out_channels = self.config["residual_block"]["out_channels"]
-        stride = self.config["residual_block"]["stride"]
-        padding = self.config["residual_block"]["padding"]
-        activation = self.config["residual_block"]["activation"]
-        kernel_size = config["residual_block"]["kernel_size"]
+        self.model_config = config.get_config["model"]
+        in_channels = self.model_config["residual_block"]["in_channels"]
+        out_channels = self.model_config["residual_block"]["out_channels"]
+        stride = self.model_config["residual_block"]["stride"]
+        padding = self.model_config["residual_block"]["padding"]
+        activation = self.model_config["residual_block"]["activation"]
+        kernel_size = self.model_config["residual_block"]["kernel_size"]
 
         self.conv1 = nn.Conv2d(
             in_channels,
@@ -61,25 +61,26 @@ class ResidualBlock(nn.Module):
 class ResNetBase(nn.Module):
     """Base class for ResNet models"""
 
-    def __init__(self, config=load_single_config("model", "resnet")):
+    def __init__(self, config: Configuration = Configuration()):
+        self.model_config = config.get_config("model")
         assert (
-            config["input_len"] == config["input_width"] * config["input_height"]
-        ), f"Input length {config['input_len']} does not match width {config['input_width']} * height {config['input_height']}"
+            self.model_config["input_len"] == self.model_config["input_width"] * self.model_config["input_height"]
+        ), f"Input length {self.model_config['input_len']} does not match width {self.model_config['input_width']} * height {self.model_config['input_height']}"
 
         super(ResNetBase, self).__init__()
-        self.input_height = config["input_height"]
-        self.input_width = config["input_width"]
+        self.input_height = self.model_config["input_height"]
+        self.input_width = self.model_config["input_width"]
         self.embed = nn.Embedding(
-            num_embeddings=config["num_embeddings"],
-            embedding_dim=config["embedding_dim"],
+            num_embeddings=self.model_config["num_embeddings"],
+            embedding_dim=self.model_config["embedding_dim"],
         )
         self.residual_blocks = nn.Sequential(
-            *[ResidualBlock(config) for _ in range(config["residual_block"]["num_blocks"])]
+            *[ResidualBlock(config) for _ in range(self.model_config["residual_block"]["num_blocks"])]
         )
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(
-            config["residual_block"]["out_channels"],
-            config["output_dim"],
+            self.model_config["residual_block"]["out_channels"],
+            self.model_config["output_dim"],
         )
 
     def forward(self, x):
@@ -97,7 +98,7 @@ class ResNetBase(nn.Module):
 class ResNetPolicy(ResNetBase):
     """ResNet model for policy"""
 
-    def __init__(self, config=load_single_config("model", "resnet")):
+    def __init__(self, config: Configuration = Configuration()):
         super(ResNetPolicy, self).__init__(config)
 
     def forward(self, x):
@@ -109,7 +110,7 @@ class ResNetPolicy(ResNetBase):
 class ResNetValue(ResNetBase):
     """ResNet model for value function"""
 
-    def __init__(self, config=load_single_config("model", "resnet")):
+    def __init__(self, config: Configuration = Configuration()):
         super(ResNetValue, self).__init__(config)
 
     def forward(self, x):

@@ -7,18 +7,18 @@ import json
 import numpy as np
 from copy import deepcopy
 
-from configs.config import load_single_config
+from configs.config import Configuration
 
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 
 
 class Game2048:
-    def __init__(self, config=load_single_config("env", "game2048"), silent_mode=True):
+    def __init__(self, config: Configuration = Configuration(), silent_mode=True):
+        self.config = config.get_config("env")
         assert (
-            config["grid_size"] ** 2 == config["grid_num"]
-        ), f"Grid size {config['grid_size']} does not match grid number {config['grid_num']}"
+            self.config["grid_size"] ** 2 == self.config["grid_num"]
+        ), f"Grid size {self.config['grid_size']} does not match grid number {self.config['grid_num']}"
 
-        self.config = config
         self.config["style"]["width"] = self.config["grid_size"] * self.config["style"]["tile_size"]
         self.config["style"]["height"] = self.config["grid_size"] * self.config["style"]["tile_size"]
         self.silent_mode = silent_mode  # 可视化
@@ -244,7 +244,7 @@ def replay(config, grid_history, action_history, delay=1500):
             clock.tick(240)
 
 
-def main(config=load_single_config("env", "game2048")):
+def main(config=Configuration()):
     # pygame 初始化和设置
     game = Game2048(config=config, silent_mode=False)
     config = game.config

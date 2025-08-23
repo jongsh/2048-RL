@@ -2,8 +2,7 @@ import torch
 import math
 import random
 
-
-from configs.config import load_single_config
+from configs.config import Configuration
 from agents.base_agent import BaseAgent
 from models.mlp import MLPValue
 from models.resnet import ResNetValue
@@ -15,49 +14,52 @@ class DQNAgent(BaseAgent):
     The Q-network is updated based on the Bellman equation, while the target network is used to stabilize training
     """
 
-    def __init__(self, config=load_single_config("agent", "dqn"), **kwargs):
+    def __init__(self, config: Configuration = Configuration(), **kwargs):
+        self.agent_config = config.get_config("agent")
+        self.public_config = config.get_config("public")
         assert (
-            len(config["offline"]["action_logit"]) == config["action_space"]
+            len(self.agent_config["offline"]["action_logit"]) == self.agent_config["action_space"]
         ), "The length of action_logit must match the action_space"
-        assert math.isclose(sum(config["offline"]["action_logit"]), 1.0), "The action_logit must sum to 1.0"
+        assert math.isclose(sum(self.agent_config["offline"]["action_logit"]), 1.0), "The action_logit must sum to 1.0"
 
         super(DQNAgent, self).__init__()
 
         # Initialize the Q-network and target network
-        self.q_network = self._build_network(config).to(device=config["device"])
-        if config["target_network"]["use"]:
-            self.target_network = self._build_network(config).to(device=config["device"])
+        self.q_network = self._build_network(config).to(device=self.public_config["device"])
+        if self.agent_config["target_network"]["use"]:
+            self.target_network = self._build_network(config).to(device=self.public_config["device"])
             self.target_network.load_state_dict(self.q_network.state_dict())
-            self.target_network_update_step = config["target_network"]["update_step"]
+            self.target_network_update_step = self.agent_config["target_network"]["update_step"]
             self.target_network_update_count = 0
-            self.target_network_update_method = config["target_network"]["update_method"]
-            self.target_network_update_method_soft_tau = config["target_network"]["update_soft_tau"]
+            self.target_network_update_method = self.agent_config["target_network"]["update_method"]
+            self.target_network_update_method_soft_tau = self.agent_config["target_network"]["update_soft_tau"]
         else:
             self.target_network = None
 
         # Online or offline training
-        self.strategy = config["strategy"]
+        self.strategy = self.agent_config["strategy"]
         if self.strategy == "online":
-            self.epsilon_max = config["online"]["start_epsilon"]
-            self.epsilon_min = config["online"]["end_epsilon"]
-            self.epsilon_decay = config["online"]["epsilon_decay"]
+            self.epsilon_max = self.agent_config["online"]["start_epsilon"]
+            self.epsilon_min = self.agent_config["online"]["end_epsilon"]
+            self.epsilon_decay = self.agent_config["online"]["epsilon_decay"]
             self.epsilon = self.epsilon_max
             self.steps_done = 0
         elif self.strategy == "offline":
-            self.sample_action_logit = config["offline"]["action_logit"]
+            self.sample_action_logit = self.agent_config["offline"]["action_logit"]
         else:
-            raise ValueError(f"Invalid strategy type {config['strategy']}. Choose 'online' or 'offline'.")
+            raise ValueError(f"Invalid strategy type {self.strategy}. Choose 'online' or 'offline'.")
 
         # Other configurations
-        self.action_space = config["action_space"]
-        self.gamma = config["gamma"]
-        self.device = config["device"]
+        self.action_space = self.agent_config["action_space"]
+        self.gamma = self.agent_config["gamma"]
+        self.device = self.public_config["device"]
 
-    def _build_network(self, config):
-        if config["model"] == "mlp":
-            return MLPValue()
-        elif config["model"] == "resnet":
-            return ResNetValue()
+    def _build_network(self, config: Configuration):
+        public_config = config.get_config("public")
+        if public_config["model"] == "mlp":
+            return MLPValue(config)
+        elif public_config["model"] == "resnet":
+            return ResNetValue(config)
 
     def get_model(self):
         return self.q_network
@@ -75,18 +77,18 @@ class DQNAgent(BaseAgent):
                 action = random.randint(0, self.action_space - 1)
             else:
                 with torch.no_grad():
-                    action = self.q_network(self._torch(state, dtype=torch.int32)).argmax(dim=1).item()
+                    action = self.q_network(self._torch(state, dtype=torch.int32).unsqueeze(0)).argmax(dim=1).item()
             self.epsilon = (
                 self.epsilon_min
                 + (self.epsilon_max - self.epsilon_min)
                 * (1 + math.cos(math.pi * self.steps_done / self.epsilon_decay))
                 / 2
             )
-            self.steps_done += len(states)
+            self.steps_done += 1
             return action
 
         else:
-            raise ValueError(f"Invalid strategy type {self.config['strategy']}.")
+            raise ValueError(f"Invalid strategy type {self.strategy}.")
 
     def select_action(self, state):
         state = self._torch(state, dtype=torch.int32).unsqueeze(0)

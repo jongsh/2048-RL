@@ -6,15 +6,15 @@ import pygame
 import random
 import numpy as np
 from envs.game2048 import Game2048
-from configs.config import load_single_config
+from configs.config import Configuration
 
 
 class Game2048Env(gym.Env):
-    def __init__(self, config=load_single_config("env", "game2048"), silent_mode=True):
+    def __init__(self, config: Configuration = Configuration(), silent_mode=True):
         super(Game2048Env, self).__init__()
 
         self.game = Game2048(config=config, silent_mode=silent_mode)
-        self.config = self.game.config
+        self.env_config = self.game.config
 
         # game state
         self.info = self.game.reset()
@@ -22,7 +22,7 @@ class Game2048Env(gym.Env):
         self.observation_space = gym.spaces.Box(
             low=-1,
             high=32,
-            shape=(self.config["grid_size"], self.config["grid_size"]),
+            shape=(self.env_config["grid_size"], self.env_config["grid_size"]),
             dtype=np.float32,
         )
         self.done = False
@@ -61,7 +61,7 @@ class Game2048Env(gym.Env):
     def render(self):
         """render the game environment"""
         screen = self.game.screen
-        screen.fill(self.config["style"]["background_color"])
+        screen.fill(self.env_config["style"]["background_color"])
         self.game._render_grid()
         pygame.display.flip()
 
@@ -76,7 +76,7 @@ class Game2048Env(gym.Env):
 
         # 空格比例奖励
         num_empty = np.sum(new_grid == 0)
-        empty_reward = self.alpha * (num_empty / (self.config["grid_size"] * self.config["grid_size"]))
+        empty_reward = self.alpha * (num_empty / (self.env_config["grid_size"] * self.env_config["grid_size"]))
 
         # 最大 tile 奖励
         old_max, new_max = old_info["max_tile"], new_info["max_tile"]
@@ -103,25 +103,25 @@ class Game2048Env(gym.Env):
             mono_score += sum(max(0, row[i] - row[i + 1]) for i in range(len(row) - 1))
         for col in grid.T:
             mono_score += sum(max(0, col[i] - col[i + 1]) for i in range(len(col) - 1))
-        max_possible = np.max(grid) * (self.config["grid_size"] - 1) * 2 + 1e-5
+        max_possible = np.max(grid) * (self.env_config["grid_size"] - 1) * 2 + 1e-5
         return 1.0 - mono_score / max_possible
 
     def _smoothness(self, grid):
         """计算平滑性"""
         smooth_score = 0
-        for i in range(self.config["grid_size"]):
-            for j in range(self.config["grid_size"]):
+        for i in range(self.env_config["grid_size"]):
+            for j in range(self.env_config["grid_size"]):
                 val = grid[i][j]
                 for dx, dy in [(1, 0), (0, 1)]:
                     ni, nj = i + dx, j + dy
-                    if ni < self.config["grid_size"] and nj < self.config["grid_size"]:
+                    if ni < self.env_config["grid_size"] and nj < self.env_config["grid_size"]:
                         smooth_score += abs(val - grid[ni][nj])
-        max_diff = np.max(grid) * 2 * (self.config["grid_size"] ** 2) + 1e-5
+        max_diff = np.max(grid) * 2 * (self.env_config["grid_size"] ** 2) + 1e-5
         return 1.0 - smooth_score / max_diff
 
 
 if __name__ == "__main__":
-    config = load_single_config("env", "game2048")
+    config = Configuration()
     env = Game2048Env(config=config, silent_mode=False)
     env.reset()
     env.render()

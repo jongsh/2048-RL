@@ -1,5 +1,6 @@
 import torch
 import math
+import os
 
 from datetime import datetime
 from tqdm import tqdm
@@ -7,31 +8,38 @@ from tqdm import tqdm
 from agents.base_agent import BaseAgent
 from utils.logger import Logger
 from utils.reply_buffer import ReplayBuffer
-from configs.config import load_single_config
+from configs.config import Configuration
 
 
 class Trainer:
     """Trainer for the RL Agent"""
 
-    def __init__(self, config=load_single_config("trainer", "base"), **kwargs):
-        assert config["exp_name"], "Experiment name must be provided"
+    def __init__(self, config: Configuration = Configuration(), **kwargs):
+        self.train_config = config.get_config("trainer")
+        self.public_config = config.get_config("public")
 
-        self.exp_dir = config["output_dir"] / config["exp_name"] / datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.logger = Logger(self.exp_dir, config["exp_name"])
-        self.replay_buffer = ReplayBuffer(config["replay_buffer_size"], config["replay_buffer_size_min"])
+        assert self.train_config["exp_name"], "Experiment name must be provided"
 
-        self.optimizer_cls = self._load_optimizer(config["optimizer"])
+        self.exp_dir = os.path.join(
+            self.train_config["output_dir"], self.train_config["exp_name"], datetime.now().strftime("%Y%m%d_%H%M%S")
+        )
+        self.logger = Logger(self.exp_dir, self.train_config["exp_name"])
+        self.replay_buffer = ReplayBuffer(
+            self.train_config["replay_buffer_size"], self.train_config["replay_buffer_size_min"]
+        )
+
+        self.optimizer_cls = self._load_optimizer(self.train_config["optimizer"])
         self.optimizer = None
         self.loss_fn = torch.nn.MSELoss()
-        self.batch_size = config["batch_size"]
-        self.episode = config["episode"]
-        self.episode_max_step = config["episode_max_step"]
-        self.learning_rate = config["learning_rate"]
-        self.device = config["device"]
+        self.batch_size = self.train_config["batch_size"]
+        self.episode = self.train_config["episode"]
+        self.episode_max_step = self.train_config["episode_max_step"]
+        self.learning_rate = self.train_config["learning_rate"]
+        self.device = self.public_config["device"]
 
-        self.log_interval = config["log_interval"]
-        self.save_interval = config["save_interval"]
-        self.from_checkpoint = config["from_checkpoint"]
+        self.log_interval = self.train_config["log_interval"]
+        self.save_interval = self.train_config["save_interval"]
+        self.from_checkpoint = self.train_config["from_checkpoint"]
 
     def _load_optimizer(self, optimizer_name):
         if optimizer_name.lower() == "adam":
@@ -41,9 +49,13 @@ class Trainer:
 
     def train(self, agent: BaseAgent, env):
         """Train the agent in the environment"""
+
         self.optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.learning_rate)
         # TODO: Implement the retraining logic
         with tqdm(total=self.episode, desc="Training Progress") as pbar_epoch:
+
+            train_loss_list = []
+            episode_reward_list = []
 
             for ep in range(1, self.episode + 1):
                 cur_episode_reward = 0  # episode reward in the current epoch
@@ -84,7 +96,15 @@ class Trainer:
 
                 # Save training progress
                 if ep % self.save_interval == 0:
-                    self._save_checkpoint(agent, self.optimizer, {"episode": ep})
+                    self._save_checkpoint(
+                        agent,
+                        self.optimizer,
+                        {"episode": ep, "cur_episode_reward": cur_episode_reward, "cur_avg_loss": avg_loss},
+                    )
+
+                # Store results for analysis
+                train_loss_list.append(avg_loss)
+                episode_reward_list.append(cur_episode_reward)
 
                 pbar_epoch.update(1)
                 pbar_epoch.set_postfix(
@@ -99,7 +119,11 @@ class Trainer:
         agent.save(save_dir)
         torch.save(optimizer.state_dict(), save_dir / "optimizer.pth")
         torch.save(metadata, save_dir / "metadata.pth")
+        Configuration().save_config(save_dir / "config.yaml")
 
-    def _load_checkpoint(self):
+    def _load_checkpoint(self, agent: BaseAgent, optimizer, checkpoint_dir):
         """Load the checkpoint"""
-        pass  # TODO: Implement loading logic if needed
+        agent.load(checkpoint_dir)
+        optimizer.load_state_dict(torch.load(checkpoint_dir / "optimizer.pth"))
+        metadata = torch.load(checkpoint_dir / "metadata.pth")
+        return metadata

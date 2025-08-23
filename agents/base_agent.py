@@ -56,3 +56,10 @@ class BaseAgent(ABC):
         Save the agent's model to the specified path.
         """
         pass
+
+    @abstractmethod
+    def load(self):
+        """
+        Load the agent's model from the specified path.
+        """
+        pass

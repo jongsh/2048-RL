@@ -24,8 +24,11 @@ class ReplayBuffer:
         if len(self.buffer) < self.min_capacity:
             return None
         transitions = random.sample(self.buffer, batch_size)
-        state, action, reward, next_state, done = zip(*transitions)
-        return np.array(state), action, reward, np.array(next_state), done
-
-    def save(self, file_path):
-        pass
+        states, actions, rewards, next_states, dones = zip(*transitions)
+        return (
+            np.array(states, dtype=np.int32),
+            np.array(actions, dtype=np.int64),
+            np.array(rewards, dtype=np.float32),
+            np.array(next_states, dtype=np.int32),
+            np.array(dones, dtype=np.int32),
+        )

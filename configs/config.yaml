@@ -7,8 +7,6 @@ public:
   model: mlp
   trainer: base
   device: cpu
-  mode: train  # train | test | retrain
-
 
 # ============ RL Agent Configuration ============
 agent:
@@ -19,7 +17,7 @@ agent:
     target_network:
       use: true
       update_step: 1000
-      update_method: hard  # hard or soft
+      update_method: hard # hard or soft
       update_soft_tau: 0.8
     online:
       start_epsilon: 1.0
@@ -31,7 +29,6 @@ agent:
         - 0.25
         - 0.25
         - 0.25
-      
 
 # ============ Deep Learning Model Configuration ============
 model:
@@ -63,7 +60,6 @@ model:
       padding: 1
       activation: "relu"
     output_dim: *action_dim
-      
 
 # ============ Environment Configuration ============
 env:
@@ -108,7 +104,6 @@ env:
         2048: [255, 255, 255]
     archive_file: envs/game2048.dat
 
-
 # ============ Trainer Configuration ============
 trainer:
   base:
@@ -118,9 +113,9 @@ trainer:
     episode_max_step: 1000
     replay_buffer_size: 10000
     replay_buffer_size_min: 100
-    learning_rate: 2e-4
+    learning_rate: 0.0002
     optimizer: Adam
     log_interval: 100
     save_interval: 1000
     output_dir: "outputs/"
-    from_checkpoint: ""  # Path to load a checkpoint, leave empty to start fresh
+    from_checkpoint: "" # Path to load a checkpoint, leave empty to start fresh
