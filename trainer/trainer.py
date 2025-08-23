@@ -29,7 +29,7 @@ class Trainer:
         )
 
         self.optimizer_cls = self._load_optimizer(self.train_config["optimizer"])
-        self.optimizer = None
+        self.optimizer = None  # will be initialized during training
         self.loss_fn = torch.nn.MSELoss()
         self.batch_size = self.train_config["batch_size"]
         self.episode = self.train_config["episode"]
@@ -39,7 +39,7 @@ class Trainer:
 
         self.log_interval = self.train_config["log_interval"]
         self.save_interval = self.train_config["save_interval"]
-        self.from_checkpoint = self.train_config["from_checkpoint"]
+        self.from_checkpoint = self.public_config["from_checkpoint"]
 
     def _load_optimizer(self, optimizer_name):
         if optimizer_name.lower() == "adam":
@@ -47,17 +47,28 @@ class Trainer:
         elif optimizer_name.lower() == "sgd":
             return torch.optim.SGD
 
-    def train(self, agent: BaseAgent, env):
+    def train(self, agent: BaseAgent, env, is_resume=False):
         """Train the agent in the environment"""
 
-        self.optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.learning_rate)
-        # TODO: Implement the retraining logic
-        with tqdm(total=self.episode, desc="Training Progress") as pbar_epoch:
+        if is_resume:  # resume training from a checkpoint
+            assert self.from_checkpoint, "Checkpoint path must be provided for resuming training"
+            optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.learning_rate)
+            metadata = self._load_checkpoint(agent, optimizer, self.from_checkpoint)
+        else:  # start training from scratch
+            optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.learning_rate)
+            metadata = {"episode": 0, "cur_episode_reward": 0, "avg_loss": 0.0}
 
+        # training loop
+        with tqdm(total=self.episode, desc="Training Progress") as pbar_epoch:
+            # Initialize progress bar
+            pbar_epoch.set_postfix(**metadata)
+            pbar_epoch.update(metadata["episode"])
+
+            # starting training
             train_loss_list = []
             episode_reward_list = []
 
-            for ep in range(1, self.episode + 1):
+            for ep in range(metadata["episode"] + 1, self.episode + 1):
                 cur_episode_reward = 0  # episode reward in the current epoch
                 cur_episode_step = 0  # steps in the current episode
                 cur_train_batch = 0  # total batch in the current episode
@@ -78,7 +89,7 @@ class Trainer:
                     # Update the agent with a batch from the replay buffer
                     batch = self.replay_buffer.sample(self.batch_size)
                     if batch is not None:
-                        loss = agent.update(*batch, self.optimizer, self.loss_fn)
+                        loss = agent.update(*batch, optimizer, self.loss_fn)
                         cur_train_batch += 1
                         cur_train_loss += loss
 
@@ -89,29 +100,25 @@ class Trainer:
 
                 # Log the current episode results
                 if ep % self.log_interval == 0:
-                    avg_reward = cur_episode_reward / cur_episode_step if cur_episode_step > 0 else 0
                     self.logger.info(
-                        f"Episode {ep}, Total Reward: {cur_episode_reward:.4f} Avg Reward: {avg_reward:.4f}, Avg Loss: {avg_loss:.4f}"
+                        f"Episode {ep}, Total Reward: {cur_episode_reward:.4f}, Total Steps: {cur_episode_step}, Avg Loss: {avg_loss:.4f}"
                     )
 
                 # Save training progress
                 if ep % self.save_interval == 0:
                     self._save_checkpoint(
                         agent,
-                        self.optimizer,
-                        {"episode": ep, "cur_episode_reward": cur_episode_reward, "cur_avg_loss": avg_loss},
+                        optimizer,
+                        {"episode": ep, "cur_episode_reward": cur_episode_reward, "avg_loss": avg_loss},
                     )
 
                 # Store results for analysis
                 train_loss_list.append(avg_loss)
                 episode_reward_list.append(cur_episode_reward)
 
+                # update pbar
                 pbar_epoch.update(1)
-                pbar_epoch.set_postfix(
-                    episode=ep,
-                    reward=cur_episode_reward,
-                    loss=avg_loss if cur_train_batch > 0 else 0,
-                )
+                pbar_epoch.set_postfix(episode=ep, reward=cur_episode_reward, loss=avg_loss)
 
     def _save_checkpoint(self, agent: BaseAgent, optimizer, metadata):
         """Save the checkpoint"""
@@ -119,6 +126,7 @@ class Trainer:
         agent.save(save_dir)
         torch.save(optimizer.state_dict(), save_dir / "optimizer.pth")
         torch.save(metadata, save_dir / "metadata.pth")
+        self.replay_buffer.save(save_dir)
         Configuration().save_config(save_dir / "config.yaml")
 
     def _load_checkpoint(self, agent: BaseAgent, optimizer, checkpoint_dir):
@@ -126,4 +134,5 @@ class Trainer:
         agent.load(checkpoint_dir)
         optimizer.load_state_dict(torch.load(checkpoint_dir / "optimizer.pth"))
         metadata = torch.load(checkpoint_dir / "metadata.pth")
+        self.replay_buffer.load(checkpoint_dir)
         return metadata

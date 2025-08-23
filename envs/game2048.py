@@ -1,10 +1,8 @@
-# 2048 game implementation
 import os
-import math
 import pygame
 import random
 import json
-import numpy as np
+
 from copy import deepcopy
 
 from configs.config import Configuration
@@ -13,6 +11,10 @@ os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 
 
 class Game2048:
+    """
+    2048 Game Implementation, with optional graphical interface using Pygame.
+    """
+
     def __init__(self, config: Configuration = Configuration(), silent_mode=True):
         self.config = config.get_config("env")
         assert (
@@ -21,7 +23,7 @@ class Game2048:
 
         self.config["style"]["width"] = self.config["grid_size"] * self.config["style"]["tile_size"]
         self.config["style"]["height"] = self.config["grid_size"] * self.config["style"]["tile_size"]
-        self.silent_mode = silent_mode  # 可视化
+        self.silent_mode = silent_mode  # silent mode for non-graphical operation
         self.reset()
 
         if not silent_mode:
@@ -31,6 +33,7 @@ class Game2048:
             self.clock = pygame.time.Clock()
             self.font = pygame.font.Font(None, self.config["style"]["font_size"])
 
+    # reset the game
     def reset(self):
         self.grid = [[0] * self.config["grid_size"] for _ in range(self.config["grid_size"])]
         self.score = 0
@@ -43,6 +46,7 @@ class Game2048:
         }
         return info
 
+    # take action and return (done, info)
     def step(self, action):
         direction_map = {0: "left", 1: "right", 2: "up", 3: "down"}
         direction = direction_map.get(action, None)
@@ -59,6 +63,7 @@ class Game2048:
         }
         return done, info
 
+    # add a new random tile to a random empty position
     def _add_random_tile(self):
         candidates = [
             (i, j)
@@ -76,25 +81,7 @@ class Game2048:
                     self.grid[i][j] = value
                     return
 
-    def _process_row(self, row, reverse=False):
-        filtered = [x for x in (reversed(row) if reverse else row) if x != 0]
-        merged = []
-        skip = False
-
-        for i in range(len(filtered)):
-            if skip:
-                skip = False
-                continue
-            if i + 1 < len(filtered) and filtered[i] == filtered[i + 1]:
-                merged.append(filtered[i] * 2)
-                self.score += filtered[i] * 2
-                skip = True
-            else:
-                merged.append(filtered[i])
-
-        padding = [0] * (self.config["grid_size"] - len(merged))
-        return (merged + padding) if not reverse else padding + merged[::-1]
-
+    # move tiles in the specified direction, return True if any tile moved or merged
     def _move(self, direction):
         moved = False
         original = [row.copy() for row in self.grid]
@@ -118,12 +105,34 @@ class Game2048:
                     self.grid[i][j] = processed[i]
         return moved
 
+    # process a single row or column for merging and shifting
+    def _process_row(self, row, reverse=False):
+        filtered = [x for x in (reversed(row) if reverse else row) if x != 0]
+        merged = []
+        skip = False
+
+        for i in range(len(filtered)):
+            if skip:
+                skip = False
+                continue
+            if i + 1 < len(filtered) and filtered[i] == filtered[i + 1]:
+                merged.append(filtered[i] * 2)
+                self.score += filtered[i] * 2
+                skip = True
+            else:
+                merged.append(filtered[i])
+
+        padding = [0] * (self.config["grid_size"] - len(merged))
+        return (merged + padding) if not reverse else padding + merged[::-1]
+
+    # render the current grid using Pygame
     def _render_grid(self):
         self.screen.fill(self.config["style"]["background_color"])
         for i in range(self.config["grid_size"]):
             for j in range(self.config["grid_size"]):
                 self._render_tile(i, j)
 
+    # render a single tile at specialized position
     def _render_tile(self, i, j):
         tile_value = self.grid[i][j]
         tile_color = self._get_tile_color(tile_value)
@@ -141,9 +150,11 @@ class Game2048:
             text_rect = text.get_rect(center=rect.center)
             self.screen.blit(text, text_rect)
 
+    # get tile color based on its value
     def _get_tile_color(self, value):
         return self.config["style"]["tile_colors"].get(value, (60, 58, 50))
 
+    # check if the game is over (no moves left)
     def _check_game_over(self):
         if any(0 in row for row in self.grid):
             return False
@@ -156,8 +167,8 @@ class Game2048:
         return True
 
 
+# replay game from history
 def replay(config, grid_history, action_history, delay=1500):
-    """game replay function"""
     if not grid_history or not action_history:
         print("No replay data available.")
         return
@@ -219,21 +230,16 @@ def replay(config, grid_history, action_history, delay=1500):
                     paused = not paused
                     current_step = current_step - 1 if need_redraw else current_step
                     need_redraw = False
-
                 elif event.key == pygame.K_ESCAPE:
                     running = False
-
                 elif paused and event.key == pygame.K_RIGHT:  # next step
                     current_step = min(current_step + 1, total_steps - 1)
                     need_redraw = True
-
                 elif paused and event.key == pygame.K_LEFT:  # previous step
                     current_step = max(current_step - 1, 0)
                     need_redraw = True
-
                 elif event.key == pygame.K_UP:
                     speed_factor = min(speed_factor * 1.2, 5.0)
-
                 elif event.key == pygame.K_DOWN:
                     speed_factor = max(speed_factor / 1.2, 0.1)
 
@@ -244,44 +250,46 @@ def replay(config, grid_history, action_history, delay=1500):
             clock.tick(240)
 
 
+# main game loop
 def main(config=Configuration()):
-    # pygame 初始化和设置
+    # initialize game
     game = Game2048(config=config, silent_mode=False)
     config = game.config
     screen = game.screen
     clock = game.clock
     font = game.font
 
-    # 加载最高分和游戏记录
+    # load high score and history
     high_score = 0
     try:
         with open(config["archive_file"], "r") as f:
             game_data = json.load(f)
             high_score = game_data.get("score", 0)
-            grid_history = game_data.get("grid_history", [])  # 游戏网格记录
-            action_history = game_data.get("action_history", [])  # 动作记录
+            grid_history = game_data.get("grid_history", [])  # grid history
+            action_history = game_data.get("action_history", [])  # action history
     except (FileNotFoundError, json.JSONDecodeError):
         high_score, grid_history, action_history = 0, [], []
 
-    # 主循环
-    state = "menu"  # 游戏状态: menu, playing, game_over
-    last_grid_surface = None  # 用于保存结束时的游戏画面
+    # game loop
+    state = "menu"  # game state: menu, playing, game_over
+    last_grid_surface = None  # last grid surface for game over display
     running = True
 
     while running:
         screen.fill(config["style"]["background_color"])
 
-        # 事件处理
+        # handle events
         for event in pygame.event.get():
+            # game quit event
             if event.type == pygame.QUIT:
                 print("Exiting game...")
                 running = False
 
-            # 鼠标点击事件
+            # mouse click event
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_pos = pygame.mouse.get_pos()
 
-                if state == "menu":
+                if state == "menu":  # menu buttons
                     main_btn_rect = pygame.Rect(
                         config["style"]["width"] // 2 - 100,
                         config["style"]["height"] // 2 - 40,
@@ -305,7 +313,7 @@ def main(config=Configuration()):
                         replay(config, grid_history, action_history)
                         state = "menu"
 
-                elif state == "game_over":
+                elif state == "game_over":  # game over buttons
                     restart_btn_rect = pygame.Rect(
                         config["style"]["width"] // 2 - 100,
                         config["style"]["height"] // 2,
@@ -318,7 +326,6 @@ def main(config=Configuration()):
                         200,
                         60,
                     )
-
                     if restart_btn_rect.collidepoint(mouse_pos):
                         game.reset()
                         game._render_grid()
@@ -330,7 +337,7 @@ def main(config=Configuration()):
                         replay(config, grid_history, action_history)
                         state = "game_over"
 
-            # 键盘事件
+            # keyboard event
             elif event.type == pygame.KEYDOWN and state == "playing":
                 if event.key == pygame.K_ESCAPE:
                     state = "menu"
@@ -343,16 +350,17 @@ def main(config=Configuration()):
                         else (
                             1
                             if event.key == pygame.K_RIGHT
-                            else (2 if event.key == pygame.K_UP else 3 if event.key == pygame.K_DOWN else None)
+                            else 2 if event.key == pygame.K_UP else 3 if event.key == pygame.K_DOWN else None
                         )
                     )
+
                     _, info = game.step(action)
                     game._render_grid()
                     if info["moved"]:
                         action_history.append(action)
                         grid_history.append(deepcopy(game.grid))
 
-        # 游戏逻辑状态处理
+        # updae game data if game over
         if state == "playing" and game and game._check_game_over():
             if game.score > high_score:
                 high_score = game.score
@@ -369,9 +377,9 @@ def main(config=Configuration()):
             last_grid_surface = screen.copy()
             state = "game_over"
 
-        # 界面渲染
+        # rending based on game state
         if state == "menu":
-            # 绘制菜单按钮
+            # menu buttons
             main_btn_rect = pygame.Rect(
                 config["style"]["width"] // 2 - 100,
                 config["style"]["height"] // 2 - 40,
@@ -383,7 +391,7 @@ def main(config=Configuration()):
             text_rect = btn_text.get_rect(center=main_btn_rect.center)
             screen.blit(btn_text, text_rect)
 
-            # 回放按钮
+            # replay button
             replay_btn_rect = pygame.Rect(
                 config["style"]["width"] // 2 - 100,
                 config["style"]["height"] // 2 + 40,
@@ -395,7 +403,7 @@ def main(config=Configuration()):
             text_rect = replay_text.get_rect(center=replay_btn_rect.center)
             screen.blit(replay_text, text_rect)
 
-            # 显示高分
+            # high score display
             score_text = font.render(f"High Score: {high_score}", True, config["style"]["font_color"])
             screen.blit(score_text, (20, 20))
 
@@ -403,13 +411,12 @@ def main(config=Configuration()):
             game._render_grid()
 
         elif state == "game_over" and last_grid_surface:
-            # 绘制游戏结束界面
             screen.blit(last_grid_surface, (0, 0))
             overlay = pygame.Surface((config["style"]["width"], config["style"]["height"]), pygame.SRCALPHA)
             overlay.fill((255, 255, 255, 128))
             screen.blit(overlay, (0, 0))
 
-            # 游戏结束信息
+            # final score display
             text = font.render(f"Final Score: {game.score}", True, (255, 87, 87))
             text_rect = text.get_rect(
                 center=(
@@ -419,7 +426,7 @@ def main(config=Configuration()):
             )
             screen.blit(text, text_rect)
 
-            # 重新开始按钮
+            # restart button
             restart_btn_rect = pygame.Rect(
                 config["style"]["width"] // 2 - 100,
                 config["style"]["height"] // 2,
@@ -431,7 +438,7 @@ def main(config=Configuration()):
             text_rect = restart_text.get_rect(center=restart_btn_rect.center)
             screen.blit(restart_text, text_rect)
 
-            # 回放按钮
+            # replay button
             replay_btn_rect = pygame.Rect(
                 config["style"]["width"] // 2 - 100,
                 config["style"]["height"] // 2 + 80,

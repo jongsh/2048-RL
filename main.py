@@ -31,20 +31,27 @@ def get_env(key):
 def main():
     parser = argparse.ArgumentParser(description="2048 RL")
     parser.add_argument("--mode", type=str, required=True, help="Mode of operation: train | test | retrain")
+    parser.add_argument("--config", type=str, default="configs/public_config.yaml", help="Path to config file")
 
     # Parse arguments
     args = parser.parse_args()
     mode = args.mode.lower()
-    public_config = Configuration().get_config("public")
+    config_path = args.config
+    public_config = Configuration(config_path=config_path).get_config("public")
 
-    # train model
+    # train model from scratch
     if mode == "train":
         trainer = get_trainer(public_config["trainer"])()
         agent = get_agent(public_config["agent"])()
         env = get_env(public_config["env"])()
-        trainer.train(agent, env)
+        trainer.train(agent, env, is_resume=False)
 
+    # retrain model
     elif mode == "retrain":
+        trainer = get_trainer(public_config["trainer"])()
+        agent = get_agent(public_config["agent"])()
+        env = get_env(public_config["env"])()
+        trainer.train(agent, env, is_resume=True)
         pass
 
     # evaluate model

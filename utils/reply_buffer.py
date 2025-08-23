@@ -32,3 +32,10 @@ class ReplayBuffer:
             np.array(next_states, dtype=np.int32),
             np.array(dones, dtype=np.int32),
         )
+
+    def save(self, dir_path):
+        np.savez_compressed(dir_path / "replay_buffer.npz", data=list(self.buffer))
+
+    def load(self, dir_path):
+        data = np.load(dir_path / "replay_buffer.npz", allow_pickle=True)["data"]
+        self.buffer = collections.deque(data.tolist(), maxlen=self.capacity)

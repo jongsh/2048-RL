@@ -7,6 +7,7 @@ public:
   model: mlp
   trainer: base
   device: cpu
+  from_checkpoint: "" # Path to load a checkpoint
 
 # ============ RL Agent Configuration ============
 agent:
@@ -118,4 +119,3 @@ trainer:
     log_interval: 100
     save_interval: 1000
     output_dir: "outputs/"
-    from_checkpoint: "" # Path to load a checkpoint, leave empty to start fresh
