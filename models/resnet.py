@@ -13,7 +13,7 @@ class ResidualBlock(nn.Module):
     def __init__(self, config: Configuration = Configuration()):
         super(ResidualBlock, self).__init__()
 
-        self.model_config = config.get_config["model"]
+        self.model_config = config.get_config("model")
         in_channels = self.model_config["residual_block"]["in_channels"]
         out_channels = self.model_config["residual_block"]["out_channels"]
         stride = self.model_config["residual_block"]["stride"]
