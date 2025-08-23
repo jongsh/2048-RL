@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from agents.base_agent import BaseAgent
 from utils.logger import Logger
-from utils.reply_buffer import ReplayBuffer
+from utils.replay_buffer import ReplayBuffer
 from configs.config import Configuration
 
 
@@ -120,9 +120,26 @@ class Trainer:
                 pbar_epoch.update(1)
                 pbar_epoch.set_postfix(episode=ep, reward=cur_episode_reward, loss=avg_loss)
 
+            # save final model
+            self.logger.info(
+                f"Episode {ep}, Total Reward: {cur_episode_reward:.4f}, Total Steps: {cur_episode_step}, Avg Loss: {avg_loss:.4f}"
+            )
+            self._save_checkpoint(
+                agent,
+                optimizer,
+                {"episode": ep, "cur_episode_reward": cur_episode_reward, "avg_loss": avg_loss},
+            )
+
+            # TODO: visualize training results
+
+            self.logger.info("Training completed.")
+
     def _save_checkpoint(self, agent: BaseAgent, optimizer, metadata):
         """Save the checkpoint"""
-        save_dir = self.exp_dir / f"checkpoint_{metadata['episode']}"
+        if metadata["episode"] != self.episode:
+            save_dir = self.exp_dir
+        else:
+            save_dir = self.exp_dir / f"checkpoint_{metadata['episode']}"
         agent.save(save_dir)
         torch.save(optimizer.state_dict(), save_dir / "optimizer.pth")
         torch.save(metadata, save_dir / "metadata.pth")
