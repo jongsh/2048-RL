@@ -2,6 +2,7 @@ import torch
 import os
 import math
 import random
+import os
 
 from configs.config import Configuration
 from agents.base_agent import BaseAgent
@@ -145,18 +146,19 @@ class DQNAgent(BaseAgent):
 
     def save(self, dir_path):
         """Save the agent's model to the specified path"""
-        q_network_path = f"{dir_path}/q_network.pth"
+        os.makedirs(dir_path, exist_ok=True)
+        q_network_path = os.path.join(dir_path, "q_network.pth")
         torch.save(self.q_network.state_dict(), q_network_path)
         if self.target_network is not None:
-            target_network_path = f"{dir_path}/target_network.pth"
+            target_network_path = os.path.join(dir_path, "target_network.pth")
             torch.save(self.target_network.state_dict(), target_network_path)
 
     def load(self, dir_path):
         """Load the agent's model from the specified path"""
-        q_network_path = f"{dir_path}/q_network.pth"
+        q_network_path = os.path.join(dir_path, "q_network.pth")
         self.q_network.load_state_dict(torch.load(q_network_path, map_location=self.device))
         if self.target_network is not None:
-            target_network_path = f"{dir_path}/target_network.pth"
+            target_network_path = os.path.join(dir_path, "target_network.pth")
             self.target_network.load_state_dict(torch.load(target_network_path, map_location=self.device))
 
 
