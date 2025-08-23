@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from agents.base_agent import BaseAgent
 from utils.logger import Logger
-from utils.reply_buffer import ReplayBuffer
+from utils.replay_buffer import ReplayBuffer
 from configs.config import Configuration
 
 
@@ -46,6 +46,8 @@ class Trainer:
             return torch.optim.Adam
         elif optimizer_name.lower() == "sgd":
             return torch.optim.SGD
+        else:
+            raise ValueError(f"Unsupported optimizer: {optimizer_name}. Supported optimizers: 'adam', 'sgd'")
 
     def train(self, agent: BaseAgent, env):
         """Train the agent in the environment"""
@@ -115,15 +117,16 @@ class Trainer:
 
     def _save_checkpoint(self, agent: BaseAgent, optimizer, metadata):
         """Save the checkpoint"""
-        save_dir = self.exp_dir / f"checkpoint_{metadata['episode']}"
+        save_dir = os.path.join(self.exp_dir, f"checkpoint_{metadata['episode']}")
+        os.makedirs(save_dir, exist_ok=True)
         agent.save(save_dir)
-        torch.save(optimizer.state_dict(), save_dir / "optimizer.pth")
-        torch.save(metadata, save_dir / "metadata.pth")
-        Configuration().save_config(save_dir / "config.yaml")
+        torch.save(optimizer.state_dict(), os.path.join(save_dir, "optimizer.pth"))
+        torch.save(metadata, os.path.join(save_dir, "metadata.pth"))
+        Configuration().save_config(save_dir)
 
     def _load_checkpoint(self, agent: BaseAgent, optimizer, checkpoint_dir):
         """Load the checkpoint"""
         agent.load(checkpoint_dir)
-        optimizer.load_state_dict(torch.load(checkpoint_dir / "optimizer.pth"))
-        metadata = torch.load(checkpoint_dir / "metadata.pth")
+        optimizer.load_state_dict(torch.load(os.path.join(checkpoint_dir, "optimizer.pth")))
+        metadata = torch.load(os.path.join(checkpoint_dir, "metadata.pth"))
         return metadata
