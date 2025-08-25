@@ -1,6 +1,8 @@
 import argparse
+import time
+import pygame
+import random
 
-from trainer.trainer import Trainer
 from configs.config import Configuration
 
 
@@ -31,7 +33,7 @@ def get_env(key):
 def main():
     parser = argparse.ArgumentParser(description="2048 RL")
     parser.add_argument("--mode", type=str, required=True, help="Mode of operation: train | test | retrain")
-    parser.add_argument("--config", type=str, default="configs/public_config.yaml", help="Path to config file")
+    parser.add_argument("--config", type=str, default="configs/config.yaml", help="Path to config file")
 
     # Parse arguments
     args = parser.parse_args()
@@ -52,11 +54,35 @@ def main():
         agent = get_agent(public_config["agent"])()
         env = get_env(public_config["env"])()
         trainer.train(agent, env, is_resume=True)
-        pass
 
     # evaluate model
     elif mode == "test":
-        pass
+        agent = get_agent(public_config["agent"])()
+        # checkpoint_dir = public_config["from_checkpoint"]
+        # agent.load(checkpoint_dir)
+
+        env = get_env(public_config["env"])(silent_mode=False)
+        obs = env.reset()
+        env.render()
+        actions = ["left", "right", "up", "down"]
+        running = True
+        total_reward = 0
+
+        while running:
+            time.sleep(1.5)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+
+            action = agent.sample_action(obs)
+            obs, reward, done, info = env.step(action)
+            total_reward += reward
+            print(f"Action: {actions[action]}, Reward: {reward}, Done: {done}")
+            env.render()
+
+            if done:
+                print(f"Game Over!\n\nTotal Reward: {total_reward:6f}\n\nFinal Info: {info}")
+                break
 
 
 if __name__ == "__main__":

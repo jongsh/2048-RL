@@ -2,7 +2,7 @@ import torch
 import os
 import math
 import random
-import os
+import json
 
 from configs.config import Configuration
 from agents.base_agent import BaseAgent
@@ -145,7 +145,8 @@ class DQNAgent(BaseAgent):
         return loss.item()
 
     def save(self, dir_path):
-        """Save the agent's model to the specified path"""
+        """Save the agent's model and state to the specified path"""
+        # save model
         os.makedirs(dir_path, exist_ok=True)
         q_network_path = os.path.join(dir_path, "q_network.pth")
         torch.save(self.q_network.state_dict(), q_network_path)
@@ -153,13 +154,31 @@ class DQNAgent(BaseAgent):
             target_network_path = os.path.join(dir_path, "target_network.pth")
             torch.save(self.target_network.state_dict(), target_network_path)
 
+        # save agent state
+        with open(os.path.join(dir_path, "agent_state.json"), "w") as f:
+            json.dump(
+                {
+                    "epsilon": self.epsilon,
+                    "steps_done": self.steps_done,
+                },
+                f,
+                indent=4,
+            )
+
     def load(self, dir_path):
         """Load the agent's model from the specified path"""
+        # load model
         q_network_path = os.path.join(dir_path, "q_network.pth")
         self.q_network.load_state_dict(torch.load(q_network_path, map_location=self.device))
         if self.target_network is not None:
             target_network_path = os.path.join(dir_path, "target_network.pth")
             self.target_network.load_state_dict(torch.load(target_network_path, map_location=self.device))
+
+        # load agent state
+        with open(os.path.join(dir_path, "agent_state.json"), "r") as f:
+            state = json.load(f)
+            self.epsilon = state.get("epsilon", self.epsilon)
+            self.steps_done = state.get("steps_done", self.steps_done)
 
 
 if __name__ == "__main__":
