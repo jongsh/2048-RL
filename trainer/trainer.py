@@ -8,6 +8,7 @@ from tqdm import tqdm
 from agents.base_agent import BaseAgent
 from utils.logger import Logger
 from utils.replay_buffer import ReplayBuffer
+from utils.visualize import plot_training_history
 from configs.config import Configuration
 
 
@@ -58,7 +59,7 @@ class Trainer:
             metadata = self._load_checkpoint(agent, optimizer, self.from_checkpoint)
         else:  # start training from scratch
             optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.learning_rate)
-            metadata = {"episode": 0, "cur_episode_reward": 0, "avg_loss": 0.0}
+            metadata = {"episode": 0, "cur_episode_reward": 0, "avg_loss": 0.0, "loss_list": [], "reward_list": []}
 
         # training loop
         with tqdm(total=self.episode, desc="Training Progress") as pbar_epoch:
@@ -67,8 +68,9 @@ class Trainer:
             pbar_epoch.update(metadata["episode"])
 
             # starting training
-            train_loss_list = []
-            episode_reward_list = []
+            train_loss_list = metadata.get("loss_list")
+            episode_reward_list = metadata.get("reward_list")
+            episode_step_list = metadata.get("step_list")
 
             for ep in range(metadata["episode"] + 1, self.episode + 1):
                 cur_episode_reward = 0  # episode reward in the current epoch
@@ -100,6 +102,11 @@ class Trainer:
 
                 avg_loss = cur_train_loss / cur_train_batch if cur_train_batch > 0 else 0
 
+                # Store results for analysis
+                train_loss_list.append(avg_loss)
+                episode_reward_list.append(cur_episode_reward)
+                episode_step_list.append(cur_episode_step)
+
                 # Log the current episode results
                 if ep % self.log_interval == 0:
                     self.logger.info(
@@ -111,12 +118,15 @@ class Trainer:
                     self._save_checkpoint(
                         agent,
                         optimizer,
-                        {"episode": ep, "cur_episode_reward": cur_episode_reward, "avg_loss": avg_loss},
+                        {
+                            "episode": ep,
+                            "cur_episode_reward": cur_episode_reward,
+                            "avg_loss": avg_loss,
+                            "loss_list": train_loss_list,
+                            "reward_list": episode_reward_list,
+                            "step_list": episode_step_list,
+                        },
                     )
-
-                # Store results for analysis
-                train_loss_list.append(avg_loss)
-                episode_reward_list.append(cur_episode_reward)
 
                 # update pbar
                 pbar_epoch.update(1)
@@ -129,16 +139,56 @@ class Trainer:
             self._save_checkpoint(
                 agent,
                 optimizer,
-                {"episode": ep, "cur_episode_reward": cur_episode_reward, "avg_loss": avg_loss},
+                {
+                    "episode": ep,
+                    "cur_episode_reward": cur_episode_reward,
+                    "avg_loss": avg_loss,
+                    "loss_list": train_loss_list,
+                    "reward_list": episode_reward_list,
+                    "step_list": episode_step_list,
+                },
             )
 
-            # TODO: visualize training results
+            # visualize training results
+            plot_training_history(
+                train_loss_list,
+                label="Training Loss",
+                xlabel="Episode",
+                ylabel="Loss",
+                title="Training Loss",
+                save_path=os.path.join(self.exp_dir, "training_loss.jpg"),
+                smooth_type="ema",
+                smooth_param=0.1,
+            )
+            plot_training_history(
+                episode_reward_list,
+                label="Episode Reward",
+                xlabel="Episode",
+                ylabel="Reward",
+                title="Episode Reward",
+                save_path=os.path.join(self.exp_dir, "episode_reward.jpg"),
+                smooth_type="ema",
+                smooth_param=0.1,
+            )
+            plot_training_history(
+                episode_step_list,
+                label="Episode Steps",
+                xlabel="Episode",
+                ylabel="Steps",
+                title="Episode Steps History",
+                save_path=os.path.join(self.exp_dir, "episode_steps.jpg"),
+                smooth_type="ema",
+                smooth_param=0.1,
+            )
 
             self.logger.info("Training completed.")
 
     def _save_checkpoint(self, agent: BaseAgent, optimizer, metadata):
         """Save the checkpoint"""
-        save_dir = os.path.join(self.exp_dir, f"checkpoint_{metadata['episode']}")
+        if metadata["episode"] >= self.episode:
+            save_dir = os.path.join(self.exp_dir)
+        else:
+            save_dir = os.path.join(self.exp_dir, f"checkpoint_{metadata['episode']}")
         os.makedirs(save_dir, exist_ok=True)
         agent.save(save_dir)
         torch.save(optimizer.state_dict(), os.path.join(save_dir, "optimizer.pth"))
