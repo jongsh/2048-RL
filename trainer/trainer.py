@@ -1,5 +1,4 @@
 import torch
-import math
 import os
 
 from datetime import datetime
@@ -9,6 +8,7 @@ from agents.base_agent import BaseAgent
 from utils.logger import Logger
 from utils.replay_buffer import ReplayBuffer
 from utils.visualize import plot_training_history
+from utils.lr_scheduler import WarmupCosineLR
 from configs.config import Configuration
 
 
@@ -35,7 +35,7 @@ class Trainer:
         self.batch_size = self.train_config["batch_size"]
         self.episode = self.train_config["episode"]
         self.episode_max_step = self.train_config["episode_max_step"]
-        self.learning_rate = self.train_config["learning_rate"]
+        self.lr_config = self.train_config["learning_rate"]
         self.device = self.public_config["device"]
 
         self.log_interval = self.train_config["log_interval"]
@@ -55,16 +55,36 @@ class Trainer:
 
         if is_resume:  # resume training from a checkpoint
             assert self.from_checkpoint, "Checkpoint path must be provided for resuming training"
-            optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.learning_rate)
+            optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.lr_config["eta_max"])
             metadata = self._load_checkpoint(agent, optimizer, self.from_checkpoint)
         else:  # start training from scratch
-            optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.learning_rate)
-            metadata = {"episode": 0, "cur_episode_reward": 0, "avg_loss": 0.0, "loss_list": [], "reward_list": []}
+            optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.lr_config["eta_max"])
+            metadata = {
+                "episode": 0,
+                "cur_episode_reward": 0,
+                "avg_loss": 0.0,
+                "loss_list": [],
+                "reward_list": [],
+                "step_list": [],
+            }
+
+        warmup_steps = int(self.lr_config["warmup_rate"] * self.lr_config["total_steps"])
+        scheduler = WarmupCosineLR(
+            optimizer,
+            warmup_steps=warmup_steps,
+            total_steps=self.lr_config["total_steps"],
+            eta_min=self.lr_config.get("eta_min"),
+            last_epoch=metadata["episode"] - 1,
+        )
 
         # training loop
         with tqdm(total=self.episode, desc="Training Progress") as pbar_epoch:
             # Initialize progress bar
-            pbar_epoch.set_postfix(**metadata)
+            pbar_epoch.set_postfix(
+                episode=metadata["episode"],
+                reward=metadata["cur_episode_reward"],
+                loss=metadata["avg_loss"],
+            )
             pbar_epoch.update(metadata["episode"])
 
             # starting training
@@ -100,17 +120,16 @@ class Trainer:
                     state = next_state
                     cur_episode_reward += reward
 
-                avg_loss = cur_train_loss / cur_train_batch if cur_train_batch > 0 else 0
-
                 # Store results for analysis
+                avg_loss = cur_train_loss / cur_train_batch if cur_train_batch > 0 else 0
                 train_loss_list.append(avg_loss)
                 episode_reward_list.append(cur_episode_reward)
                 episode_step_list.append(cur_episode_step)
 
                 # Log the current episode results
-                if ep % self.log_interval == 0:
+                if ep % self.log_interval == 0 or ep == self.episode:
                     self.logger.info(
-                        f"Episode {ep}, Total Reward: {cur_episode_reward:.4f}, Total Steps: {cur_episode_step}, Avg Loss: {avg_loss:.4f}"
+                        f"Episode {ep}, Learning Rate: {optimizer.param_groups[0]['lr']: .6f}, Total Reward: {cur_episode_reward:.4f}, Total Steps: {cur_episode_step}, Avg Loss: {avg_loss:.4f}"
                     )
 
                 # Save training progress
@@ -130,11 +149,16 @@ class Trainer:
 
                 # update pbar
                 pbar_epoch.update(1)
-                pbar_epoch.set_postfix(episode=ep, reward=cur_episode_reward, loss=avg_loss)
+                pbar_epoch.set_postfix(
+                    episode=ep, reward=cur_episode_reward, loss=avg_loss, learning_rate=scheduler.get_lr()[0]
+                )
+
+                # Update learning rate
+                scheduler.step()
 
             # save final model
             self.logger.info(
-                f"Episode {ep}, Total Reward: {cur_episode_reward:.4f}, Total Steps: {cur_episode_step}, Avg Loss: {avg_loss:.4f}"
+                f"Training finished, saving final model to {self.exp_dir}, total episodes: {self.episode}, total steps: {sum(episode_step_list)}, average reward: {sum(episode_reward_list)/len(episode_reward_list):.4f}"
             )
             self._save_checkpoint(
                 agent,
