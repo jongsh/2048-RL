@@ -1,7 +1,7 @@
 # 2048 game environment for reinforcement learning
 import math
 import time
-import gym
+import gymnasium as gym
 import pygame
 import random
 import numpy as np
@@ -69,32 +69,25 @@ class Game2048Env(gym.Env):
         """calculate the reward based on the new game state"""
         old_info = self.info
         new_grid = np.array(new_info["grid"], dtype=np.int32)
+        old_grid = np.array(old_info["grid"], dtype=np.int32)
 
-        # 合并奖励
-        merge_score = new_info["score"] - old_info["score"]
-        merge_reward = math.log2(merge_score + 1)
+        # 1. 合并奖励：只要有合并，就奖励 +1（不看 tile 大小）
+        merge_reward = 0
+        score_gain = new_info["score"] - old_info["score"]
+        if score_gain > 0:
+            # 每次合并动作按 log2(score_gain) 估计合并次数（大概估一下）
+            merge_count = int(math.log2(score_gain + 1))
+            merge_reward = merge_count * 1.0
 
-        # 空格比例奖励
-        num_empty = np.sum(new_grid == 0)
-        empty_reward = self.alpha * (num_empty / (self.env_config["grid_size"] * self.env_config["grid_size"]))
+        # 2. 空格奖励：保持盘面更宽松
+        empty_before = np.sum(old_grid == 0)
+        empty_after = np.sum(new_grid == 0)
+        space_reward = (empty_after - empty_before) * 0.1
 
-        # 最大 tile 奖励
-        old_max, new_max = old_info["max_tile"], new_info["max_tile"]
-        max_reward = self.beta * max(0, math.log2(new_max) - math.log2(old_max)) if new_max > old_max else 0
+        # 3. 游戏结束惩罚
+        done_reward = -5.0 if done else 0
 
-        # 单调性奖励
-        mono_reward = self.gamma * self._monotonicity(new_grid)
-
-        # 平滑性奖励
-        smooth_reward = self.delta * self._smoothness(new_grid)
-
-        # 非法动作惩罚
-        invalid_reward = -self.zeta if not new_info.get("moved", True) else 0
-
-        # 游戏结束惩罚
-        done_reward = -self.eta if done else 0
-
-        return merge_reward + empty_reward + max_reward + mono_reward + smooth_reward + invalid_reward + done_reward
+        return merge_reward + space_reward + done_reward
 
     def _monotonicity(self, grid):
         """计算单调性"""

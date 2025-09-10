@@ -1,6 +1,8 @@
-gym
+gymnasium
 numpy
 pygame
 PyYAML
+tqdm
+matplotlib
 torch
 torchinfo

@@ -39,6 +39,15 @@ class Configuration:
         save_path = f"{dir_path}/config.yaml"
         with open(save_path, "w") as file:
             yaml.dump(self.config, file)
+    
+    def to_string(self):
+        """Return the configuration as a formatted string"""
+        return yaml.dump(
+        self.config,
+        sort_keys=False,
+        default_flow_style=False,  # 紧凑的 {key: value} 样式
+        indent=2                  # 缩进保持好看
+    )
 
     def _validate(self):
         public_config = self.config["public"]

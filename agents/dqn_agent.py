@@ -80,13 +80,13 @@ class DQNAgent(BaseAgent):
             else:
                 with torch.no_grad():
                     action = self.q_network(self._torch(state, dtype=torch.int32).unsqueeze(0)).argmax(dim=1).item()
-            self.epsilon = (
-                self.epsilon_min
-                + (self.epsilon_max - self.epsilon_min)
-                * (1 + math.cos(math.pi * self.steps_done / self.epsilon_decay))
-                / 2
-            )
-            self.steps_done += 1
+
+            if self.steps_done < self.epsilon_decay:
+                self.epsilon = max(
+                    self.epsilon_min,
+                    self.epsilon_max - (self.epsilon_max - self.epsilon_min) * self.steps_done / self.epsilon_decay,
+                )
+                self.steps_done += 1
             return action
 
         else:
@@ -133,6 +133,7 @@ class DQNAgent(BaseAgent):
 
         optimizer.zero_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=10)
         optimizer.step()
 
         # Update target network

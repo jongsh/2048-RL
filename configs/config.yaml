@@ -4,32 +4,10 @@ public:
   action_dim: &action_dim 4
   env: game2048
   agent: dqn
-  model: mlp
+  model: resnet
   trainer: base
-  device: cpu
+  device: cuda:0
   from_checkpoint: "" # Path to load a checkpoint
-
-# ============ RL Agent Configuration ============
-agent:
-  dqn:
-    gamma: 0.95
-    action_space: *action_dim
-    strategy: online
-    target_network:
-      use: true
-      update_step: 1000
-      update_method: hard # hard or soft
-      update_soft_tau: 0.8
-    online:
-      start_epsilon: 1.0
-      end_epsilon: 0.05
-      epsilon_decay: 10000
-    offline:
-      action_logit:
-        - 0.25
-        - 0.25
-        - 0.25
-        - 0.25
 
 # ============ Deep Learning Model Configuration ============
 model:
@@ -117,9 +95,31 @@ trainer:
     learning_rate:
       warmup_rate: 0.1
       total_steps: *episode
-      eta_min: 1e-6
-      eta_max: 2e-5
+      eta_min: 1.0e-06
+      eta_max: 2.5e-05
     optimizer: Adam
     log_interval: 100
     save_interval: 1000
     output_dir: "outputs/"
+
+# ============ RL Agent Configuration ============
+agent:
+  dqn:
+    gamma: 0.95
+    action_space: *action_dim
+    strategy: online
+    target_network:
+      use: true
+      update_step: 20
+      update_method: hard # hard or soft
+      update_soft_tau: 0.8
+    online:
+      start_epsilon: 1.0
+      end_epsilon: 0.05
+      epsilon_decay: 1000000
+    offline:
+      action_logit:
+        - 0.25
+        - 0.25
+        - 0.25
+        - 0.25

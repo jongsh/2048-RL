@@ -31,7 +31,7 @@ class Trainer:
 
         self.optimizer_cls = self._load_optimizer(self.train_config["optimizer"])
         self.optimizer = None  # will be initialized during training
-        self.loss_fn = torch.nn.MSELoss()
+        self.loss_fn = torch.nn.SmoothL1Loss()
         self.batch_size = self.train_config["batch_size"]
         self.episode = self.train_config["episode"]
         self.episode_max_step = self.train_config["episode_max_step"]
@@ -41,6 +41,8 @@ class Trainer:
         self.log_interval = self.train_config["log_interval"]
         self.save_interval = self.train_config["save_interval"]
         self.from_checkpoint = self.public_config["from_checkpoint"]
+
+        self.logger.info(f"Configuration:\n{config.to_string()}")
 
     def _load_optimizer(self, optimizer_name):
         if optimizer_name.lower() == "adam":
@@ -101,6 +103,7 @@ class Trainer:
                 state = env.reset()
                 done = False
 
+                # update replay buffer
                 while not done and cur_episode_step < self.episode_max_step:
                     # Sample action from the agent
                     cur_episode_step += 1
@@ -129,7 +132,7 @@ class Trainer:
                 # Log the current episode results
                 if ep % self.log_interval == 0 or ep == self.episode:
                     self.logger.info(
-                        f"Episode {ep}, Learning Rate: {optimizer.param_groups[0]['lr']: .6f}, Total Reward: {cur_episode_reward:.4f}, Total Steps: {cur_episode_step}, Avg Loss: {avg_loss:.4f}"
+                        f"Episode {ep}, Learning Rate: {optimizer.param_groups[0]['lr']:.10f}, Total Reward: {cur_episode_reward:.4f}, Total Steps: {cur_episode_step}, Avg Loss: {avg_loss:.4f}"
                     )
 
                 # Save training progress
