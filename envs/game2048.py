@@ -57,7 +57,7 @@ class Game2048:
         done = self._check_game_over()
         info = {
             "moved": moved,
-            "grid": self.grid,
+            "grid": deepcopy(self.grid),
             "score": self.score,
             "max_tile": max(max(row) for row in self.grid),
         }
