@@ -58,9 +58,8 @@ def main():
     # evaluate model
     elif mode == "test":
         agent = get_agent(public_config["agent"])()
-        # checkpoint_dir = public_config["from_checkpoint"]
-        # agent.load(checkpoint_dir)
-
+        checkpoint_dir = public_config["from_checkpoint"]
+        agent.load(checkpoint_dir)
         env = get_env(public_config["env"])(silent_mode=False)
         obs = env.reset()
         env.render()

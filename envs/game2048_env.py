@@ -27,36 +27,31 @@ class Game2048Env(gym.Env):
         )
         self.done = False
 
-        # reward parameters
-        self.alpha = 0.3  # space reward
-        self.beta = 0.7  # max tile reward
-        self.gamma = 0.1  # monotonicity reward
-        self.delta = 0.1  # smoothness reward
-        self.zeta = 1  # invalid action penalty
-        self.eta = 5  # game over penalty
-
     def reset(self):
         """reset the game environment"""
         self.info = self.game.reset()
         self.done = False
         grid_array = np.array(self.game.grid, dtype=np.float32)
         grid_array[grid_array == 0] = 1
-        return np.log2(grid_array)
+        action_mask = self._action_mask(self.info["grid"])
+        return np.log2(grid_array), self.info, action_mask
 
     def step(self, action):
         """take a step in the game environment"""
         if self.done:
             raise ValueError("Episode has ended. Please reset the environment.")
 
-        done, new_info = self.game.step(action)
+        done, new_info = self.game.step(action, strict=True)
         self.done = done
-        reward = self._cal_reward(new_info, done)
+        action_mask = self._action_mask(self.info["grid"])
+        reward, reward_info = self._cal_reward(new_info, done)
+        new_info["reward_info"] = reward_info
         self.info = new_info
 
         grid_array = np.array(self.game.grid, dtype=np.float32)
         grid_array[grid_array == 0] = 1
         obs = np.log2(grid_array)
-        return obs, reward, done, new_info
+        return obs, reward, done, new_info, action_mask
 
     def render(self):
         """render the game environment"""
@@ -64,6 +59,38 @@ class Game2048Env(gym.Env):
         screen.fill(self.env_config["style"]["background_color"])
         self.game._render_grid()
         pygame.display.flip()
+
+    def _action_mask(self, grid):
+        """generate action mask for valid moves"""
+        grid = np.array(grid)
+        mask = [0, 0, 0, 0]  # [left, right, up, down]
+
+        # left
+        shift = np.zeros_like(grid)
+        shift[:, 1:] = grid[:, :-1]
+        cond_left = (grid != 0) & ((shift == 0) | (shift == grid))
+        if np.any(cond_left[:, 1:]):
+            mask[0] = 1
+        # right
+        shift = np.zeros_like(grid)
+        shift[:, :-1] = grid[:, 1:]
+        cond_right = (grid != 0) & ((shift == 0) | (shift == grid))
+        if np.any(cond_right[:, :-1]):
+            mask[1] = 1
+        # up
+        shift = np.zeros_like(grid)
+        shift[1:, :] = grid[:-1, :]
+        cond_up = (grid != 0) & ((shift == 0) | (shift == grid))
+        if np.any(cond_up[1:, :]):
+            mask[2] = 1
+        # down
+        shift = np.zeros_like(grid)
+        shift[:-1, :] = grid[1:, :]
+        cond_down = (grid != 0) & ((shift == 0) | (shift == grid))
+        if np.any(cond_down[:-1, :]):
+            mask[3] = 1
+
+        return mask
 
     def _cal_reward(self, new_info, done):
         """calculate the reward based on the new game state"""
@@ -75,18 +102,29 @@ class Game2048Env(gym.Env):
         merge_reward = 0
         score_gain = new_info["score"] - old_info["score"]
         if score_gain > 0:
-            merge_count = int(math.log2(score_gain + 1))
-            merge_reward = merge_count * 1.0
-
+            merge_reward += math.log2(score_gain + 1)
         # 2. space reward
         empty_before = np.sum(old_grid == 0)
         empty_after = np.sum(new_grid == 0)
-        space_reward = (empty_after - empty_before) * 0.1
+        space_reward = (empty_after - empty_before) * 0.05
+        # 3. penalize invalid action
+        invalid_reward = -1.0 if new_info["moved"] == False else 0.0
+        # 4. penalty for game over
+        if done:
+            done_reward = -110
+            done_reward += math.log2(new_info["max_tile"]) * 10
+        else:
+            done_reward = 0.0
 
-        # 3. penalty for game over
-        done_reward = -5.0 if done else 0
+        # info
+        info = {
+            "merge_reward": merge_reward,
+            "space_reward": space_reward,
+            "invalid_reward": invalid_reward,
+            "done_reward": done_reward,
+        }
 
-        return merge_reward + space_reward + done_reward
+        return merge_reward + space_reward + invalid_reward + done_reward, info
 
     def _monotonicity(self, grid):
         """计算单调性"""

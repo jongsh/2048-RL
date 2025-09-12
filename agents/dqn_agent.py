@@ -66,22 +66,33 @@ class DQNAgent(BaseAgent):
     def get_model(self):
         return self.q_network
 
-    def sample_action(self, state):
+    def sample_action(self, state, action_mask=None):
+        # offline learning: sample action based on predefined probabilities
         if self.strategy == "offline":
+            sample_logit = self.sample_action_logit
+            if action_mask is not None:
+                masked_logit = [logit if mask else 0.0 for logit, mask in zip(sample_logit, action_mask)]
+                total = sum(masked_logit)
+                sample_logit = [logit / total for logit in masked_logit]
             action = random.choices(
                 range(self.action_space),
-                weights=self.sample_action_logit,
+                weights=sample_logit,
                 k=1,
             )[0]
             return action
+        # online learning: epsilon-greedy strategy
         elif self.strategy == "online":
             if random.random() < self.epsilon:
                 action = random.randint(0, self.action_space - 1)
             else:
                 with torch.no_grad():
-                    action = self.q_network(self._torch(state, dtype=torch.int32).unsqueeze(0)).argmax(dim=1).item()
+                    action = (
+                        self.q_network(self._torch(state, dtype=torch.int32).unsqueeze(0), action_mask)
+                        .argmax(dim=1)
+                        .item()
+                    )
 
-            if self.steps_done < self.epsilon_decay:
+            if self.steps_done <= self.epsilon_decay:
                 self.epsilon = max(
                     self.epsilon_min,
                     self.epsilon_max - (self.epsilon_max - self.epsilon_min) * self.steps_done / self.epsilon_decay,
@@ -92,10 +103,19 @@ class DQNAgent(BaseAgent):
         else:
             raise ValueError(f"Invalid strategy type {self.strategy}.")
 
-    def select_action(self, state):
+    def select_action(self, state, action_mask=None, method="greedy"):
+        if method == "random":
+            return random.randint(0, self.action_space - 1)
         state = self._torch(state, dtype=torch.int32).unsqueeze(0)
         q_values = self.q_network(state)
-        action = q_values.argmax(dim=1).item()
+        if method == "greedy":
+            action = q_values.argmax(dim=1).item()
+        elif method == "sample":
+            action = random.choices(
+                range(self.action_space),
+                weights=torch.softmax(q_values, dim=1).squeeze(0).cpu().numpy(),
+                k=1,
+            )[0]
         return action
 
     def _update_target_network(self):

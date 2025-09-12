@@ -4,41 +4,10 @@ public:
   action_dim: &action_dim 4
   env: game2048
   agent: dqn
-  model: resnet
+  model: mlp
   trainer: base
   device: cuda:0
-  from_checkpoint: "" # Path to load a checkpoint
-
-# ============ Deep Learning Model Configuration ============
-model:
-  # multi-layer perceptron
-  mlp:
-    input_len: *env_dim
-    embedding_dim: 16
-    num_embeddings: 32
-    feed_forward:
-      num_layers: 2
-      hidden_dim: 32
-      output_dim: *action_dim
-      activation: "relu"
-      bias: true
-
-  # resnet model
-  resnet:
-    input_len: *env_dim
-    input_height: 4
-    input_width: 4
-    embedding_dim: &resnet_embedding_dim 16
-    num_embeddings: 32
-    residual_block:
-      num_blocks: 2
-      kernel_size: 3
-      in_channels: *resnet_embedding_dim
-      out_channels: *resnet_embedding_dim
-      stride: 1
-      padding: 1
-      activation: "relu"
-    output_dim: *action_dim
+  from_checkpoint: "/home/wangwenrui/private/cjh/code/2048-RL/outputs/resnet-small/20250911_074213" # Path to load a checkpoint
 
 # ============ Environment Configuration ============
 env:
@@ -83,22 +52,53 @@ env:
         2048: [255, 255, 255]
     archive_file: envs/game2048.dat
 
+# ============ Deep Learning Model Configuration ============
+model:
+  # multi-layer perceptron
+  mlp:
+    input_len: *env_dim
+    embedding_dim: 16
+    num_embeddings: 32
+    feed_forward:
+      num_layers: 4
+      hidden_dim: 32
+      output_dim: *action_dim
+      activation: "relu"
+      bias: true
+
+  # resnet model
+  resnet:
+    input_len: *env_dim
+    input_height: 4
+    input_width: 4
+    embedding_dim: &resnet_embedding_dim 32
+    num_embeddings: 32
+    residual_block:
+      num_blocks: 3
+      kernel_size: 3
+      in_channels: *resnet_embedding_dim
+      out_channels: *resnet_embedding_dim
+      stride: 1
+      padding: 1
+      activation: "relu"
+    output_dim: *action_dim
+
 # ============ Trainer Configuration ============
 trainer:
   base:
-    exp_name: default
-    batch_size: 16
+    exp_name: mlp-small
+    batch_size: 48
     episode: &episode 10000
     episode_max_step: 1000
-    replay_buffer_size: 10000
-    replay_buffer_size_min: 100
+    replay_buffer_size: 50000
+    replay_buffer_size_min: 1000
     learning_rate:
       warmup_rate: 0.1
       total_steps: *episode
-      eta_min: 1.0e-06
+      eta_min: 0.0
       eta_max: 2.5e-05
     optimizer: Adam
-    log_interval: 100
+    log_interval: 50
     save_interval: 1000
     output_dir: "outputs/"
 
@@ -110,13 +110,13 @@ agent:
     strategy: online
     target_network:
       use: true
-      update_step: 20
+      update_step: 500
       update_method: hard # hard or soft
       update_soft_tau: 0.8
     online:
       start_epsilon: 1.0
       end_epsilon: 0.05
-      epsilon_decay: 1000000
+      epsilon_decay: 3000000
     offline:
       action_logit:
         - 0.25

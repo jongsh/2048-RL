@@ -42,7 +42,7 @@ class Trainer:
         self.save_interval = self.train_config["save_interval"]
         self.from_checkpoint = self.public_config["from_checkpoint"]
 
-        self.logger.info(f"Configuration:\n{config.to_string()}")
+        self.logger.info("\n" + config.to_string() + "\n")
 
     def _load_optimizer(self, optimizer_name):
         if optimizer_name.lower() == "adam":
@@ -64,6 +64,7 @@ class Trainer:
             metadata = {
                 "episode": 0,
                 "cur_episode_reward": 0,
+                "cur_episode_step": 0,
                 "avg_loss": 0.0,
                 "loss_list": [],
                 "reward_list": [],
@@ -75,7 +76,7 @@ class Trainer:
             optimizer,
             warmup_steps=warmup_steps,
             total_steps=self.lr_config["total_steps"],
-            eta_min=self.lr_config.get("eta_min"),
+            eta_min=self.lr_config["eta_min"],
             last_epoch=metadata["episode"] - 1,
         )
 
@@ -85,6 +86,7 @@ class Trainer:
             pbar_epoch.set_postfix(
                 episode=metadata["episode"],
                 reward=metadata["cur_episode_reward"],
+                steps=metadata["cur_episode_step"],
                 loss=metadata["avg_loss"],
             )
             pbar_epoch.update(metadata["episode"])
@@ -100,15 +102,15 @@ class Trainer:
                 cur_train_batch = 0  # total batch in the current episode
                 cur_train_loss = 0.0  # current train loss
 
-                state = env.reset()
+                state, _, action_mask = env.reset()
                 done = False
 
                 # update replay buffer
                 while not done and cur_episode_step < self.episode_max_step:
                     # Sample action from the agent
                     cur_episode_step += 1
-                    action = agent.sample_action(state)
-                    next_state, reward, done, _ = env.step(action)
+                    action = agent.sample_action(state, action_mask)
+                    next_state, reward, done, _, action_mask = env.step(action)
 
                     # Add experience to the replay buffer
                     self.replay_buffer.add(state, action, reward, next_state, done)
@@ -123,17 +125,14 @@ class Trainer:
                     state = next_state
                     cur_episode_reward += reward
 
+                # Update learning rate
+                scheduler.step()
+
                 # Store results for analysis
                 avg_loss = cur_train_loss / cur_train_batch if cur_train_batch > 0 else 0
                 train_loss_list.append(avg_loss)
                 episode_reward_list.append(cur_episode_reward)
                 episode_step_list.append(cur_episode_step)
-
-                # Log the current episode results
-                if ep % self.log_interval == 0 or ep == self.episode:
-                    self.logger.info(
-                        f"Episode {ep}, Learning Rate: {optimizer.param_groups[0]['lr']:.10f}, Total Reward: {cur_episode_reward:.4f}, Total Steps: {cur_episode_step}, Avg Loss: {avg_loss:.4f}"
-                    )
 
                 # Save training progress
                 if ep % self.save_interval == 0:
@@ -153,11 +152,18 @@ class Trainer:
                 # update pbar
                 pbar_epoch.update(1)
                 pbar_epoch.set_postfix(
-                    episode=ep, reward=cur_episode_reward, loss=avg_loss, learning_rate=scheduler.get_lr()[0]
+                    episode=ep,
+                    reward=cur_episode_reward,
+                    steps=cur_episode_step,
+                    loss=avg_loss,
+                    lr=scheduler.get_lr()[0],
                 )
 
-                # Update learning rate
-                scheduler.step()
+                # Log the current episode results
+                if ep % self.log_interval == 0 or ep == self.episode:
+                    self.logger.info(
+                        f"Episode {ep}, Learning Rate: {optimizer.param_groups[0]['lr']:.10f}, Total Reward: {cur_episode_reward:.4f}, Total Steps: {cur_episode_step}, Avg Loss: {avg_loss:.4f}"
+                    )
 
             # save final model
             self.logger.info(
@@ -169,6 +175,7 @@ class Trainer:
                 {
                     "episode": ep,
                     "cur_episode_reward": cur_episode_reward,
+                    "cur_episode_step": cur_episode_step,
                     "avg_loss": avg_loss,
                     "loss_list": train_loss_list,
                     "reward_list": episode_reward_list,
@@ -184,8 +191,8 @@ class Trainer:
                 ylabel="Loss",
                 title="Training Loss",
                 save_path=os.path.join(self.exp_dir, "training_loss.jpg"),
-                smooth_type="ema",
-                smooth_param=0.1,
+                smooth_type="ma",
+                smooth_param=50,
             )
             plot_training_history(
                 episode_reward_list,
@@ -194,8 +201,8 @@ class Trainer:
                 ylabel="Reward",
                 title="Episode Reward",
                 save_path=os.path.join(self.exp_dir, "episode_reward.jpg"),
-                smooth_type="ema",
-                smooth_param=0.1,
+                smooth_type="ma",
+                smooth_param=50,
             )
             plot_training_history(
                 episode_step_list,
@@ -204,8 +211,8 @@ class Trainer:
                 ylabel="Steps",
                 title="Episode Steps History",
                 save_path=os.path.join(self.exp_dir, "episode_steps.jpg"),
-                smooth_type="ema",
-                smooth_param=0.1,
+                smooth_type="ma",
+                smooth_param=50,
             )
 
             self.logger.info("Training completed.")

@@ -39,15 +39,29 @@ class Configuration:
         save_path = f"{dir_path}/config.yaml"
         with open(save_path, "w") as file:
             yaml.dump(self.config, file)
-    
+
     def to_string(self):
         """Return the configuration as a formatted string"""
-        return yaml.dump(
-        self.config,
-        sort_keys=False,
-        default_flow_style=False,  # 紧凑的 {key: value} 样式
-        indent=2                  # 缩进保持好看
-    )
+
+        def format_value(v, indent=2):
+            if isinstance(v, dict):
+                lines = [""]
+                for k2, v2 in v.items():
+                    sub_str = format_value(v2, indent + 2)
+                    lines.append(" " * indent + f"{k2}: {sub_str}")
+                return "\n".join(lines)
+            elif isinstance(v, list):
+                return "[" + ", ".join(map(str, v)) + "]"
+            else:
+                return str(v)
+
+        lines = ["=" * 10 + " Configuration Summary " + "=" * 10, ""]
+        for section, content in self.ret_config.items():
+            lines.append(f"[{section}]")
+            lines.append(format_value(content, indent=2))
+            lines.append("")
+        lines.append("=" * 40)
+        return "\n".join(lines)
 
     def _validate(self):
         public_config = self.config["public"]

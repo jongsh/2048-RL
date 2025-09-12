@@ -42,8 +42,10 @@ class MLPPolicy(MLPBase):
     def __init__(self, config: Configuration = Configuration()):
         super(MLPPolicy, self).__init__(config)
 
-    def forward(self, x):
+    def forward(self, x, action_mask=None):
         action_logits = super(MLPPolicy, self).forward(x)
+        if action_mask is not None:
+            action_logits = action_logits.masked_fill(torch.tensor(action_mask, dtype=torch.bool) == 0, -1e9)
         action_probs = F.softmax(action_logits, dim=-1)
         return action_probs, action_logits
 

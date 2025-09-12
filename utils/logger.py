@@ -37,16 +37,16 @@ class Logger:
         self.logger.addHandler(console_handler)
 
     def info(self, msg):
-        self.logger.info(msg)
+        self.logger.info(msg, stacklevel=2)
 
     def debug(self, msg):
-        self.logger.debug(msg)
+        self.logger.debug(msg, stacklevel=2)
 
     def warning(self, msg):
-        self.logger.warning(msg)
+        self.logger.warning(msg, stacklevel=2)
 
     def error(self, msg):
-        self.logger.error(msg)
+        self.logger.error(msg, stacklevel=2)
 
     def get_log_file(self):
         return self.log_path

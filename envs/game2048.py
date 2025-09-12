@@ -47,11 +47,13 @@ class Game2048:
         return info
 
     # take action and return (done, info)
-    def step(self, action):
+    def step(self, action, strict=False):
         direction_map = {0: "left", 1: "right", 2: "up", 3: "down"}
         direction = direction_map.get(action, None)
         moved = self._move(direction)
-        if direction and moved:
+        if strict:
+            self._add_random_tile()
+        elif moved:
             self._add_random_tile()
 
         done = self._check_game_over()
