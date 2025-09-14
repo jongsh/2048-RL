@@ -129,7 +129,7 @@ class DQNAgent(BaseAgent):
         elif method == "sample":
             action = random.choices(
                 range(self.action_space),
-                weights=torch.softmax(q_values, dim=1).squeeze(0).cpu().numpy(),
+                weights=torch.softmax(q_values, dim=1).squeeze(0).cpu().detach().numpy(),
                 k=1,
             )[0]
         return action
@@ -207,10 +207,12 @@ class DQNAgent(BaseAgent):
         """Load the agent's model from the specified path"""
         # load model
         q_network_path = os.path.join(dir_path, "q_network.pth")
-        self.q_network.load_state_dict(torch.load(q_network_path, map_location=self.device))
+        self.q_network.load_state_dict(torch.load(q_network_path, map_location=self.device, weights_only=True))
         if self.target_network is not None:
             target_network_path = os.path.join(dir_path, "target_network.pth")
-            self.target_network.load_state_dict(torch.load(target_network_path, map_location=self.device))
+            self.target_network.load_state_dict(
+                torch.load(target_network_path, map_location=self.device, weights_only=True)
+            )
 
         # load agent state
         with open(os.path.join(dir_path, "agent_state.json"), "r") as f:

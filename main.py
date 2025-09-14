@@ -61,7 +61,7 @@ def main():
         checkpoint_dir = public_config["from_checkpoint"]
         agent.load(checkpoint_dir)
         env = get_env(public_config["env"])(silent_mode=False)
-        obs = env.reset()
+        obs, info = env.reset()
         env.render()
         actions = ["left", "right", "up", "down"]
         running = True
@@ -73,8 +73,8 @@ def main():
                 if event.type == pygame.QUIT:
                     running = False
 
-            action = agent.sample_action(obs)
-            obs, reward, done, info = env.step(action)
+            action = agent.select_action(obs, action_mask=info["action_mask"], method="sample")
+            obs, reward, done, _, info = env.step(action)
             total_reward += reward
             print(f"Action: {actions[action]}, Reward: {reward}, Done: {done}")
             env.render()
