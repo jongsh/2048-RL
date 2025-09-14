@@ -49,6 +49,8 @@ class Trainer:
             return torch.optim.Adam
         elif optimizer_name.lower() == "sgd":
             return torch.optim.SGD
+        elif optimizer_name.lower() == "adamw":
+            return torch.optim.AdamW
         else:
             raise ValueError(f"Unsupported optimizer: {optimizer_name}. Supported optimizers: 'adam', 'sgd'")
 
@@ -102,7 +104,8 @@ class Trainer:
                 cur_train_batch = 0  # total batch in the current episode
                 cur_train_loss = 0.0  # current train loss
 
-                state, _, action_mask = env.reset()
+                state, info = env.reset()
+                action_mask = info["action_mask"]
                 done = False
 
                 # update replay buffer
@@ -110,10 +113,10 @@ class Trainer:
                     # Sample action from the agent
                     cur_episode_step += 1
                     action = agent.sample_action(state, action_mask)
-                    next_state, reward, done, _, action_mask = env.step(action)
+                    next_state, reward, done, _, info = env.step(action)
 
                     # Add experience to the replay buffer
-                    self.replay_buffer.add(state, action, reward, next_state, done)
+                    self.replay_buffer.add(state, action, reward, next_state, done, action_mask)
 
                     # Update the agent with a batch from the replay buffer
                     batch = self.replay_buffer.sample(self.batch_size)
@@ -123,6 +126,7 @@ class Trainer:
                         cur_train_loss += loss
 
                     state = next_state
+                    action_mask = info["action_mask"]
                     cur_episode_reward += reward
 
                 # Update learning rate

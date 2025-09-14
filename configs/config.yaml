@@ -4,10 +4,10 @@ public:
   action_dim: &action_dim 4
   env: game2048
   agent: dqn
-  model: mlp
+  model: resnet
   trainer: base
   device: cuda:0
-  from_checkpoint: "/home/wangwenrui/private/cjh/code/2048-RL/outputs/resnet-small/20250911_074213" # Path to load a checkpoint
+  from_checkpoint: "" # Path to load a checkpoint
 
 # ============ Environment Configuration ============
 env:
@@ -63,7 +63,7 @@ model:
       num_layers: 4
       hidden_dim: 32
       output_dim: *action_dim
-      activation: "relu"
+      activation: "gelu"
       bias: true
 
   # resnet model
@@ -71,7 +71,7 @@ model:
     input_len: *env_dim
     input_height: 4
     input_width: 4
-    embedding_dim: &resnet_embedding_dim 32
+    embedding_dim: &resnet_embedding_dim 64
     num_embeddings: 32
     residual_block:
       num_blocks: 3
@@ -80,14 +80,14 @@ model:
       out_channels: *resnet_embedding_dim
       stride: 1
       padding: 1
-      activation: "relu"
+      activation: "gelu"
     output_dim: *action_dim
 
 # ============ Trainer Configuration ============
 trainer:
   base:
-    exp_name: mlp-small
-    batch_size: 48
+    exp_name: resnet-small
+    batch_size: 32
     episode: &episode 10000
     episode_max_step: 1000
     replay_buffer_size: 50000
@@ -96,7 +96,7 @@ trainer:
       warmup_rate: 0.1
       total_steps: *episode
       eta_min: 0.0
-      eta_max: 2.5e-05
+      eta_max: 1.0e-04
     optimizer: Adam
     log_interval: 50
     save_interval: 1000
@@ -105,7 +105,7 @@ trainer:
 # ============ RL Agent Configuration ============
 agent:
   dqn:
-    gamma: 0.95
+    gamma: 0.99
     action_space: *action_dim
     strategy: online
     target_network:
@@ -116,7 +116,7 @@ agent:
     online:
       start_epsilon: 1.0
       end_epsilon: 0.05
-      epsilon_decay: 3000000
+      epsilon_decay: 100000
     offline:
       action_logit:
         - 0.25

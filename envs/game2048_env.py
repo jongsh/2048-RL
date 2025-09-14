@@ -20,10 +20,10 @@ class Game2048Env(gym.Env):
         self.info = self.game.reset()
         self.action_space = gym.spaces.Discrete(4)  # 0: left, 1: right, 2: up, 3: down
         self.observation_space = gym.spaces.Box(
-            low=-1,
-            high=32,
+            low=0,
+            high=np.inf,
             shape=(self.env_config["grid_size"], self.env_config["grid_size"]),
-            dtype=np.float32,
+            dtype=np.int32,
         )
         self.done = False
 
@@ -32,26 +32,28 @@ class Game2048Env(gym.Env):
         self.info = self.game.reset()
         self.done = False
         grid_array = np.array(self.game.grid, dtype=np.float32)
-        grid_array[grid_array == 0] = 1
+        obs = np.log2(np.where(grid_array == 0, 1, grid_array)).astype(np.int32)
         action_mask = self._action_mask(self.info["grid"])
-        return np.log2(grid_array), self.info, action_mask
+        self.info["action_mask"] = action_mask
+        return obs, self.info
 
     def step(self, action):
         """take a step in the game environment"""
         if self.done:
             raise ValueError("Episode has ended. Please reset the environment.")
 
-        done, new_info = self.game.step(action, strict=True)
+        done, new_info = self.game.step(action)
         self.done = done
-        action_mask = self._action_mask(self.info["grid"])
+
+        action_mask = self._action_mask(new_info["grid"])
         reward, reward_info = self._cal_reward(new_info, done)
         new_info["reward_info"] = reward_info
+        new_info["action_mask"] = action_mask
         self.info = new_info
 
-        grid_array = np.array(self.game.grid, dtype=np.float32)
-        grid_array[grid_array == 0] = 1
-        obs = np.log2(grid_array)
-        return obs, reward, done, new_info, action_mask
+        grid_array = np.array(self.game.grid, dtype=np.int32)
+        obs = np.log2(np.where(grid_array == 0, 1, grid_array)).astype(np.int32)
+        return obs, reward, done, False, new_info  # gymnasium: (obs, reward, done, truncated, info)
 
     def render(self):
         """render the game environment"""
@@ -102,17 +104,16 @@ class Game2048Env(gym.Env):
         merge_reward = 0
         score_gain = new_info["score"] - old_info["score"]
         if score_gain > 0:
-            merge_reward += math.log2(score_gain + 1)
+            merge_reward += math.log2(score_gain + 1) * 0.1
         # 2. space reward
         empty_before = np.sum(old_grid == 0)
         empty_after = np.sum(new_grid == 0)
-        space_reward = (empty_after - empty_before) * 0.05
+        space_reward = float((empty_after - empty_before) * 0.05)
         # 3. penalize invalid action
         invalid_reward = -1.0 if new_info["moved"] == False else 0.0
-        # 4. penalty for game over
+        # 4. game over reward
         if done:
-            done_reward = -110
-            done_reward += math.log2(new_info["max_tile"]) * 10
+            done_reward = math.log2(new_info["max_tile"]) ** 2
         else:
             done_reward = 0.0
 
@@ -159,13 +160,18 @@ if __name__ == "__main__":
     actions = ["left", "right", "up", "down"]
     running = True
     while running:
+        print("\n" + "=" * 20)
         time.sleep(1.5)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
 
         action = random.randint(0, 3)
-        obs, reward, done, info = env.step(action)
+        print(f"\nTaking action: {actions[action]}")
+        obs, reward, terminated, truncated, info = env.step(action)
+        done = terminated or truncated
+        print("Observation:\n", obs)
+        print("Info:\n", info)
         print(f"Action: {actions[action]}, Reward: {reward}, Done: {done}")
         env.render()
 

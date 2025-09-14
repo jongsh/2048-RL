@@ -104,7 +104,7 @@ class ResNetPolicy(ResNetBase):
     def forward(self, x, action_mask=None):
         action_logits = super(ResNetPolicy, self).forward(x)  # (B, output_dim)
         if action_mask is not None:
-            action_logits = action_logits.masked_fill(torch.tensor(action_mask, dtype=torch.bool) == 0, -1e9)
+            action_logits = action_logits.masked_fill(action_mask == 0, -1e9)
         action_probs = F.softmax(action_logits, dim=-1)
         return action_probs, action_logits
 
@@ -115,8 +115,11 @@ class ResNetValue(ResNetBase):
     def __init__(self, config: Configuration = Configuration()):
         super(ResNetValue, self).__init__(config)
 
-    def forward(self, x):
-        return super(ResNetValue, self).forward(x)  # (B, output_dim)
+    def forward(self, x, action_mask=None):
+        value = super(ResNetValue, self).forward(x)  # (B, output_dim)
+        if action_mask is not None:
+            value = value.masked_fill(action_mask == 0, -1e9)
+        return value
 
 
 if __name__ == "__main__":

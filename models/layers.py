@@ -26,9 +26,7 @@ class ActivationFunction(nn.Module):
 class FeedForward(nn.Module):
     """A simple feed-forward neural network"""
 
-    def __init__(
-        self, input_dim, hidden_dim, output_dim, num_layers, activation, bias=False
-    ):
+    def __init__(self, input_dim, hidden_dim, output_dim, num_layers, activation, bias=False):
         super(FeedForward, self).__init__()
         layers = []
         for i in range(num_layers):
@@ -90,7 +88,5 @@ class MultiHeadAttention(nn.Module):
 
         # Compute attention output
         attn_output = dropped_attn_weights @ v  # B, num_heads, L, head_dim
-        attn_output = (
-            attn_output.transpose(1, 2).contiguous().view(batch_size, seq_len, -1)
-        )  # B, L, hidden_dim
+        attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, seq_len, -1)  # B, L, hidden_dim
         return self.out_proj(attn_output), attn_weights

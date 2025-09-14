@@ -83,15 +83,28 @@ class DQNAgent(BaseAgent):
         # online learning: epsilon-greedy strategy
         elif self.strategy == "online":
             if random.random() < self.epsilon:
-                action = random.randint(0, self.action_space - 1)
+                # select a random valid action
+                if action_mask is not None:
+                    valid_actions = [i for i, valid in enumerate(action_mask) if valid]
+                    action = random.choice(valid_actions)
+                else:
+                    action = random.randint(0, self.action_space - 1)
             else:
+                # select the action with highest Q-value
                 with torch.no_grad():
                     action = (
-                        self.q_network(self._torch(state, dtype=torch.int32).unsqueeze(0), action_mask)
+                        self.q_network(
+                            self._torch(state, dtype=torch.int32).unsqueeze(0),
+                            (
+                                self._torch(action_mask, dtype=torch.int32).unsqueeze(0)
+                                if action_mask is not None
+                                else None
+                            ),
+                        )
                         .argmax(dim=1)
                         .item()
                     )
-
+            # Decay epsilon
             if self.steps_done <= self.epsilon_decay:
                 self.epsilon = max(
                     self.epsilon_min,
@@ -107,7 +120,10 @@ class DQNAgent(BaseAgent):
         if method == "random":
             return random.randint(0, self.action_space - 1)
         state = self._torch(state, dtype=torch.int32).unsqueeze(0)
-        q_values = self.q_network(state)
+        q_values = self.q_network(
+            state,
+            action_mask=(self._torch(action_mask, dtype=torch.int32).unsqueeze(0) if action_mask is not None else None),
+        )
         if method == "greedy":
             action = q_values.argmax(dim=1).item()
         elif method == "sample":
@@ -129,23 +145,24 @@ class DQNAgent(BaseAgent):
                     + param.data * self.target_network_update_method_soft_tau
                 )
 
-    def update(self, states, actions, rewards, next_states, dones, optimizer, loss_fn):
+    def update(self, states, actions, rewards, next_states, dones, action_mask, optimizer, loss_fn):
         # Convert inputs to tensors
         states = self._torch(states, dtype=torch.int32)
         actions = self._torch(actions, dtype=torch.int64)
         rewards = self._torch(rewards, dtype=torch.float32)
         next_states = self._torch(next_states, dtype=torch.int32)
         dones = self._torch(dones, dtype=torch.int32)
+        action_mask = self._torch(action_mask, dtype=torch.int32)
 
         # Update Q-network
-        q_values = self.q_network(states)
+        q_values = self.q_network(states, action_mask)
         q_value = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
 
         with torch.no_grad():
             if self.target_network is not None:
-                next_q_values = self.target_network(next_states)
+                next_q_values = self.target_network(next_states, action_mask)
             else:
-                next_q_values = self.q_network(next_states)
+                next_q_values = self.q_network(next_states, action_mask)
             max_next_q_values = next_q_values.max(dim=1)[0]
             target_q_value = rewards + self.gamma * max_next_q_values * (1 - dones)
 

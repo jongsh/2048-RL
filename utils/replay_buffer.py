@@ -17,20 +17,21 @@ class ReplayBuffer:
     def clear(self):
         self.buffer.clear()
 
-    def add(self, state, action, reward, next_state, done):
-        self.buffer.append((state, action, reward, next_state, done))
+    def add(self, state, action, reward, next_state, done, action_mask):
+        self.buffer.append((state, action, reward, next_state, done, action_mask))
 
     def sample(self, batch_size):
         if len(self.buffer) < self.min_capacity:
             return None
         transitions = random.sample(self.buffer, batch_size)
-        states, actions, rewards, next_states, dones = zip(*transitions)
+        states, actions, rewards, next_states, dones, action_mask = zip(*transitions)
         return (
             np.array(states, dtype=np.int32),
             np.array(actions, dtype=np.int64),
             np.array(rewards, dtype=np.float32),
             np.array(next_states, dtype=np.int32),
             np.array(dones, dtype=np.int32),
+            np.array(action_mask, dtype=np.int32),
         )
 
     def save(self, dir_path):
