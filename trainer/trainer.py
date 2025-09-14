@@ -25,6 +25,7 @@ class Trainer:
             self.train_config["output_dir"], self.train_config["exp_name"], datetime.now().strftime("%Y%m%d_%H%M%S")
         )
         self.logger = Logger(self.exp_dir, self.train_config["exp_name"])
+        config.config["public"]["from_checkpoint"] = self.exp_dir  # update checkpoint path in config
         self.replay_buffer = ReplayBuffer(
             self.train_config["replay_buffer_size"], self.train_config["replay_buffer_size_min"]
         )

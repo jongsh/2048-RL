@@ -4,7 +4,7 @@ public:
   action_dim: &action_dim 4
   env: game2048
   agent: dqn
-  model: resnet
+  model: mlp
   trainer: base
   device: cuda:0
   from_checkpoint: "" # Path to load a checkpoint
@@ -52,56 +52,6 @@ env:
         2048: [255, 255, 255]
     archive_file: envs/game2048.dat
 
-# ============ Deep Learning Model Configuration ============
-model:
-  # multi-layer perceptron
-  mlp:
-    input_len: *env_dim
-    embedding_dim: 16
-    num_embeddings: 32
-    feed_forward:
-      num_layers: 4
-      hidden_dim: 32
-      output_dim: *action_dim
-      activation: "gelu"
-      bias: true
-
-  # resnet model
-  resnet:
-    input_len: *env_dim
-    input_height: 4
-    input_width: 4
-    embedding_dim: &resnet_embedding_dim 64
-    num_embeddings: 32
-    residual_block:
-      num_blocks: 3
-      kernel_size: 3
-      in_channels: *resnet_embedding_dim
-      out_channels: *resnet_embedding_dim
-      stride: 1
-      padding: 1
-      activation: "gelu"
-    output_dim: *action_dim
-
-# ============ Trainer Configuration ============
-trainer:
-  base:
-    exp_name: resnet-small
-    batch_size: 32
-    episode: &episode 10000
-    episode_max_step: 1000
-    replay_buffer_size: 50000
-    replay_buffer_size_min: 1000
-    learning_rate:
-      warmup_rate: 0.1
-      total_steps: *episode
-      eta_min: 0.0
-      eta_max: 1.0e-04
-    optimizer: Adam
-    log_interval: 50
-    save_interval: 1000
-    output_dir: "outputs/"
-
 # ============ RL Agent Configuration ============
 agent:
   dqn:
@@ -116,10 +66,72 @@ agent:
     online:
       start_epsilon: 1.0
       end_epsilon: 0.05
-      epsilon_decay: 100000
+      epsilon_decay: 250000
     offline:
       action_logit:
         - 0.25
         - 0.25
         - 0.25
         - 0.25
+# ============ Deep Learning Model Configuration ============
+
+model:
+  # multi-layer perceptron
+  mlp:
+    input_len: *env_dim
+    input_embedding:
+      embedding_dim: 16
+      num_embeddings: 32
+    position_embedding:
+      max_len: *env_dim
+      embedding_dim: 16
+      mode: "sinusoidal" # "sinusoidal" or "learnable"
+      method: "add" # "add" or "concat"
+    feed_forward:
+      num_layers: 4
+      hidden_dim: 64
+      output_dim: *action_dim
+      activation: "gelu"
+      bias: true
+
+  # resnet model
+  resnet:
+    input_len: *env_dim
+    input_height: 4
+    input_width: 4
+    input_embedding:
+      embedding_dim: &resnet_embedding_dim 16
+      num_embeddings: 32
+    position_embedding:
+      max_len: *env_dim
+      embedding_dim: 16
+      mode: "sinusoidal" # "sinusoidal" or "learnable"
+      method: "add" # "add" or "concat"
+    residual_block:
+      num_blocks: 3
+      kernel_size: 3
+      stride: 1
+      padding: 1
+      hidden_dim: 64
+    activation: "gelu"
+    output_dim: *action_dim
+
+# ============ Trainer Configuration ============
+trainer:
+  base:
+    exp_name: mlp-small
+    batch_size: 32
+    episode: &episode 50000
+    episode_max_step: 1000
+    replay_buffer_size: 50000
+    replay_buffer_size_min: 1000
+    learning_rate:
+      warmup_rate: 0.1
+      total_steps: *episode
+      eta_min: 0.0
+      eta_max: 1.0e-04
+    optimizer: Adam
+    log_interval: 50
+    save_interval: 1000
+    output_dir: "outputs/"
+

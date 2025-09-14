@@ -4,23 +4,16 @@ from torch.nn import functional as F
 from torchinfo import summary
 
 from configs.config import Configuration
-from models.layers import ActivationFunction
+from models.layers import ActivationFunction, AbsolutePositionalEncoding
 
 
 class ResidualBlock(nn.Module):
     """Residual block for ResNet"""
 
-    def __init__(self, config: Configuration = Configuration()):
+    def __init__(self, channel, stride, padding, activation, kernel_size):
         super(ResidualBlock, self).__init__()
 
-        self.model_config = config.get_config("model")
-        in_channels = self.model_config["residual_block"]["in_channels"]
-        out_channels = self.model_config["residual_block"]["out_channels"]
-        stride = self.model_config["residual_block"]["stride"]
-        padding = self.model_config["residual_block"]["padding"]
-        activation = self.model_config["residual_block"]["activation"]
-        kernel_size = self.model_config["residual_block"]["kernel_size"]
-
+        in_channels = out_channels = channel
         self.conv1 = nn.Conv2d(
             in_channels,
             out_channels,
@@ -39,7 +32,7 @@ class ResidualBlock(nn.Module):
         self.bn2 = nn.BatchNorm2d(out_channels)
         self.activation = ActivationFunction(activation)
 
-        if in_channels != out_channels or stride != 1:
+        if stride != 1 or in_channels != out_channels:
             self.downsample = nn.Sequential(
                 nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False),
                 nn.BatchNorm2d(out_channels),
@@ -70,23 +63,65 @@ class ResNetBase(nn.Module):
         super(ResNetBase, self).__init__()
         self.input_height = self.model_config["input_height"]
         self.input_width = self.model_config["input_width"]
+        # Embedding layer
         self.embed = nn.Embedding(
-            num_embeddings=self.model_config["num_embeddings"],
-            embedding_dim=self.model_config["embedding_dim"],
+            num_embeddings=self.model_config["input_embedding"]["num_embeddings"],
+            embedding_dim=self.model_config["input_embedding"]["embedding_dim"],
         )
+        # Positional Encoding layer
+        self.pos_encoder = AbsolutePositionalEncoding(
+            max_len=self.model_config["position_embedding"]["max_len"],
+            embed_dim=self.model_config["position_embedding"]["embedding_dim"],
+            mode=self.model_config["position_embedding"]["mode"],
+            method=self.model_config["position_embedding"]["method"],
+        )
+        # Projection layer
+        if self.model_config["position_embedding"]["method"] == "add":
+            in_channels = self.model_config["input_embedding"]["embedding_dim"]
+        else:
+            in_channels = (
+                self.model_config["input_embedding"]["embedding_dim"]
+                + self.model_config["position_embedding"]["embedding_dim"]
+            )
+        out_channels = self.model_config["residual_block"]["hidden_dim"]
+        self.project = nn.Linear(in_channels, out_channels)
+        self.activation = ActivationFunction(self.model_config["activation"])
+        # Residual blocks
+        stride = self.model_config["residual_block"]["stride"]
+        padding = self.model_config["residual_block"]["padding"]
+        activation = self.model_config["activation"]
+        kernel_size = self.model_config["residual_block"]["kernel_size"]
+
         self.residual_blocks = nn.Sequential(
-            *[ResidualBlock(config) for _ in range(self.model_config["residual_block"]["num_blocks"])]
+            *[
+                ResidualBlock(
+                    channel=out_channels,
+                    stride=stride,
+                    padding=padding,
+                    activation=activation,
+                    kernel_size=kernel_size,
+                )
+                for _ in range(self.model_config["residual_block"]["num_blocks"])
+            ]
         )
+        # Output layer
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(
-            self.model_config["residual_block"]["out_channels"],
+            self.model_config["residual_block"]["hidden_dim"],
             self.model_config["output_dim"],
         )
 
     def forward(self, x):
         # x: (B, H, W)
+        # input embedding
         x = self.embed(x)  # (B, H, W, D)
         B, H, W, D = x.size()
+        x = x.view(B, -1, D)  # (B, L, D)
+        x = self.pos_encoder(x)  # (B, L, D)
+        x = x.view(B, H, W, -1)  # (B, H, W, D)
+        x = self.activation(self.project(x))  # (B, H, W, D)
+
+        # residual blocks
         x = x.permute(0, 3, 1, 2)  # (B, D, H, W)
         x = self.residual_blocks(x)  # (B, D, H, W)
         x = self.avg_pool(x)  # (B, D, 1, 1)

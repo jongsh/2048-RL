@@ -2,6 +2,7 @@ import argparse
 import time
 import pygame
 import random
+import os
 
 from configs.config import Configuration
 
@@ -59,6 +60,8 @@ def main():
     elif mode == "test":
         agent = get_agent(public_config["agent"])()
         checkpoint_dir = public_config["from_checkpoint"]
+        # 检测路径合法
+        assert os.path.exists(checkpoint_dir), f"Checkpoint path {checkpoint_dir} does not exist!"
         agent.load(checkpoint_dir)
         env = get_env(public_config["env"])(silent_mode=False)
         obs, info = env.reset()

@@ -4,7 +4,7 @@ from torch.nn import functional as F
 from torchinfo import summary
 
 from configs.config import Configuration
-from models.layers import FeedForward
+from models.layers import FeedForward, AbsolutePositionalEncoding
 
 
 class MLPBase(torch.nn.Module):
@@ -14,12 +14,27 @@ class MLPBase(torch.nn.Module):
         self.model_config = config.get_config("model")
 
         super(MLPBase, self).__init__()
+        # Embedding layer
         self.embed = nn.Embedding(
-            num_embeddings=self.model_config["num_embeddings"],
-            embedding_dim=self.model_config["embedding_dim"],
+            num_embeddings=self.model_config["input_embedding"]["num_embeddings"],
+            embedding_dim=self.model_config["input_embedding"]["embedding_dim"],
         )
+        # Positional Encoding layer
+        self.pos_encoder = AbsolutePositionalEncoding(
+            max_len=self.model_config["position_embedding"]["max_len"],
+            embed_dim=self.model_config["position_embedding"]["embedding_dim"],
+            mode=self.model_config["position_embedding"]["mode"],
+            method=self.model_config["position_embedding"]["method"],
+        )
+        # Calculate input dimension
+        if self.model_config["position_embedding"]["method"] == "add":
+            input_dim = self.model_config["input_len"] * self.model_config["input_embedding"]["embedding_dim"]
+        else:
+            input_dim = self.model_config["input_len"] * (
+                self.model_config["embedding_dim"] + self.model_config["position_embedding"]["embedding_dim"]
+            )
         self.network = FeedForward(
-            input_dim=self.model_config["input_len"] * self.model_config["embedding_dim"],
+            input_dim=input_dim,
             hidden_dim=self.model_config["feed_forward"]["hidden_dim"],
             output_dim=self.model_config["feed_forward"]["output_dim"],
             num_layers=self.model_config["feed_forward"]["num_layers"],
@@ -27,12 +42,16 @@ class MLPBase(torch.nn.Module):
             bias=self.model_config["feed_forward"]["bias"],
         )
 
+    def init_weights(m):
+        pass
+
     def forward(self, x):
         # x: (B, L)
         x = x.view(x.size(0), -1)  # Flatten the input to (B, L)
         x = self.embed(x)  # (B, L, embedding_dim)
+        x = self.pos_encoder(x)  # (B, L, D)
         B, _, _ = x.size()
-        x = x.view(B, -1)  # (B, L * embedding_dim)
+        x = x.view(B, -1)  # (B, L * D)
         return self.network(x)  # (B, output_dim)
 
 

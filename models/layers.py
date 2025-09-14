@@ -1,3 +1,6 @@
+import torch
+import math
+
 from torch import nn
 from torch.nn import functional as F
 
@@ -38,6 +41,13 @@ class FeedForward(nn.Module):
         layers.append(nn.Linear(hidden_dim, output_dim, bias=bias))
         self.network = nn.Sequential(*layers)
 
+    def init_weights(self):
+        for m in self.network:
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
     def forward(self, x):
         x = self.network(x)
         return x
@@ -59,6 +69,12 @@ class MultiHeadAttention(nn.Module):
         self.v_proj = nn.Linear(embed_dim, hidden_dim, bias=bias)
         self.out_proj = nn.Linear(hidden_dim, embed_dim, bias=bias)
         self.dropout = nn.Dropout(dropout)
+
+    def init_weights(self):
+        for m in [self.q_proj, self.k_proj, self.v_proj, self.out_proj]:
+            nn.init.xavier_uniform_(m.weight)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
 
     def forward(self, x, attn_mask=None):
         batch_size, seq_len, _ = x.size()  # B, L, D
@@ -90,3 +106,48 @@ class MultiHeadAttention(nn.Module):
         attn_output = dropped_attn_weights @ v  # B, num_heads, L, head_dim
         attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, seq_len, -1)  # B, L, hidden_dim
         return self.out_proj(attn_output), attn_weights
+
+
+class AbsolutePositionalEncoding(nn.Module):
+    """Absolute Positional Encoding module"""
+
+    def __init__(self, max_len, embed_dim, mode="sinusoidal", method="add"):
+        super(AbsolutePositionalEncoding, self).__init__()
+        self.method = method
+        self.mode = mode
+
+        # sinusoidal absolute positional encoding
+        if mode == "sinusoidal":
+            self.pe = self._build_sinusoidal(max_len, embed_dim)
+        # learnable absolute positional encoding
+        elif mode == "learnable":
+            self.pe = nn.Embedding(max_len, embed_dim)
+        # unsupported mode
+        else:
+            raise ValueError(f"Unsupported positional encoding mode: {mode}, choose 'sinusoidal' or 'learnable'")
+
+    def _build_sinusoidal(self, max_len: int, dim: int) -> torch.Tensor:
+        """Create sinusoidal positional encoding matrix"""
+        position = torch.arange(max_len, dtype=torch.float).unsqueeze(1)  # (max_len, 1)
+        div_term = torch.exp(torch.arange(0, dim, 2).float() * -(math.log(10000.0) / dim))  # (dim/2,)
+        pe = torch.zeros(max_len, dim)
+
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        return pe  # (max_len, dim)
+
+    def init_weights(self):
+        if self.mode == "sinusoidal":
+            pass
+        elif self.mode == "learnable":
+            nn.init.normal_(self.pe.weight, mean=0, std=0.02)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        batch_size, seq_len, _ = x.size()  # (B, L, D)
+        if self.mode == "sinusoidal":
+            pe = self.pe[:seq_len, :].unsqueeze(0).to(x.device)  # (1, seq_len, dim)
+        else:
+            positions = torch.arange(seq_len, device=x.device)
+            pe = self.pe(positions).unsqueeze(0)  # (1, seq_len, dim)
+
+        return x + pe if self.method == "add" else torch.cat([x, pe.expand(batch_size, -1, -1)], dim=-1)
