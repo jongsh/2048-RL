@@ -197,7 +197,7 @@ class Trainer:
                 title="Training Loss",
                 save_path=os.path.join(self.exp_dir, "training_loss.jpg"),
                 smooth_type="ma",
-                smooth_param=50,
+                smooth_param=100,
             )
             plot_training_history(
                 episode_reward_list,
@@ -207,7 +207,7 @@ class Trainer:
                 title="Episode Reward",
                 save_path=os.path.join(self.exp_dir, "episode_reward.jpg"),
                 smooth_type="ma",
-                smooth_param=50,
+                smooth_param=100,
             )
             plot_training_history(
                 episode_step_list,
@@ -217,7 +217,7 @@ class Trainer:
                 title="Episode Steps History",
                 save_path=os.path.join(self.exp_dir, "episode_steps.jpg"),
                 smooth_type="ma",
-                smooth_param=50,
+                smooth_param=100,
             )
 
             self.logger.info("Training completed.")

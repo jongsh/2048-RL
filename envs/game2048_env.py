@@ -113,9 +113,9 @@ class Game2048Env(gym.Env):
         invalid_reward = -1.0 if new_info["moved"] == False else 0.0
         # 4. game over reward
         if done:
-            done_reward = math.log2(new_info["max_tile"]) ** 2
+            done_reward = math.log2(new_info["max_tile"]) ** 2 - 100
         else:
-            done_reward = 0.0
+            done_reward = 0
 
         # info
         info = {
