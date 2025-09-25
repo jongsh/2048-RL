@@ -72,14 +72,14 @@ class Configuration:
 
         # Validate agent
         if public_config["agent"] not in self.register["agent"]:
-            raise ValueError(f"Agent {public_config['agent']} not registered.")
+            raise ValueError(f"Agent {public_config['agent']} is not registered.")
 
         # Validate model
         if public_config["model"] not in self.register["model"]:
-            raise ValueError(f"Model {public_config['model']} not registered.")
+            raise ValueError(f"Model {public_config['model']} is not registered.")
 
         # Validate trainer
         if public_config["trainer"] not in self.register["trainer"]:
-            raise ValueError(f"Trainer {public_config['trainer']} not registered.")
+            raise ValueError(f"Trainer {public_config['trainer']} is not registered.")
 
         return True

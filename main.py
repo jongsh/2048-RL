@@ -5,6 +5,7 @@ import random
 import os
 
 from configs.config import Configuration
+from trainer.trainer import Trainer
 
 
 # Function to get the agent based on the key
@@ -16,11 +17,11 @@ def get_agent(key):
 
 
 # Function to get the trainer based on the key
-def get_trainer(key):
-    if key == "base":
-        from trainer.trainer import Trainer
+def get_trainer(key) -> Trainer:
+    if key == "dqn":
+        from trainer.dqn_trainer import DQNTrainer
 
-        return Trainer
+        return DQNTrainer
 
 
 # Function to get the environment based on the key

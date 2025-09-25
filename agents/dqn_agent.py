@@ -8,6 +8,7 @@ from configs.config import Configuration
 from agents.base_agent import BaseAgent
 from models.mlp import MLPValue
 from models.resnet import ResNetValue
+from models.transformer import TransformerEncoderValue
 
 
 class DQNAgent(BaseAgent):
@@ -62,11 +63,13 @@ class DQNAgent(BaseAgent):
             return MLPValue(config)
         elif public_config["model"] == "resnet":
             return ResNetValue(config)
+        elif public_config["model"] == "transformer":
+            return TransformerEncoderValue(config)
 
     def get_model(self):
         return self.q_network
 
-    def sample_action(self, state, action_mask=None):
+    def sample_action(self, state, action_mask=None, update_epsilon=True):
         # offline learning: sample action based on predefined probabilities
         if self.strategy == "offline":
             sample_logit = self.sample_action_logit
@@ -105,7 +108,7 @@ class DQNAgent(BaseAgent):
                         .item()
                     )
             # Decay epsilon
-            if self.steps_done <= self.epsilon_decay:
+            if update_epsilon and self.steps_done <= self.epsilon_decay:
                 self.epsilon = max(
                     self.epsilon_min,
                     self.epsilon_max - (self.epsilon_max - self.epsilon_min) * self.steps_done / self.epsilon_decay,

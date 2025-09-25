@@ -100,22 +100,30 @@ class Game2048Env(gym.Env):
         new_grid = np.array(new_info["grid"], dtype=np.int32)
         old_grid = np.array(old_info["grid"], dtype=np.int32)
 
+        normalnize_factor = 100
         # 1. merge reward
-        merge_reward = 0
+        merge_reward = 0.0
         score_gain = new_info["score"] - old_info["score"]
         if score_gain > 0:
             merge_reward += math.log2(score_gain + 1) * 0.1
+        merge_reward /= normalnize_factor
+
         # 2. space reward
         empty_before = np.sum(old_grid == 0)
         empty_after = np.sum(new_grid == 0)
         space_reward = float((empty_after - empty_before) * 0.05)
+        space_reward /= normalnize_factor
+
         # 3. penalize invalid action
         invalid_reward = -1.0 if new_info["moved"] == False else 0.0
+        invalid_reward /= normalnize_factor
+
         # 4. game over reward
         if done:
             done_reward = math.log2(new_info["max_tile"]) ** 2 - 100
         else:
             done_reward = 0
+        done_reward /= normalnize_factor
 
         # info
         info = {

@@ -5,6 +5,7 @@ from datetime import datetime
 from tqdm import tqdm
 
 from agents.base_agent import BaseAgent
+from trainer.trainer import Trainer
 from utils.logger import Logger
 from utils.replay_buffer import ReplayBuffer
 from utils.visualize import plot_training_history
@@ -12,14 +13,15 @@ from utils.lr_scheduler import WarmupCosineLR
 from configs.config import Configuration
 
 
-class Trainer:
-    """Trainer for the RL Agent"""
+class DQNTrainer(Trainer):
+    """DQN Trainer for the RL Agent"""
 
     def __init__(self, config: Configuration = Configuration(), **kwargs):
         self.train_config = config.get_config("trainer")
         self.public_config = config.get_config("public")
 
         assert self.train_config["exp_name"], "Experiment name must be provided"
+        super(DQNTrainer, self).__init__(**kwargs)
 
         self.exp_dir = os.path.join(
             self.train_config["output_dir"], self.train_config["exp_name"], datetime.now().strftime("%Y%m%d_%H%M%S")

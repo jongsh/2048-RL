@@ -5,9 +5,38 @@ public:
   env: game2048
   agent: dqn
   model: mlp
-  trainer: base
-  device: cuda:0
+  trainer: dqn
+  device: cuda:1
   from_checkpoint: "" # Path to load a checkpoint
+
+# ============ Trainer Configuration ============
+trainer:
+  # DQN Trainer
+  dqn:
+    exp_name: mlp-small
+    batch_size: 64
+    train_episode: &train_episode 20000
+    episode_max_step: 1000
+    train_update_interval: 5
+    replay_buffer_update_interval: 1
+    replay_buffer_size: 100000
+    replay_buffer_size_min: 10000
+    learning_rate:
+      warmup_rate: 0.1
+      total_steps: *train_episode
+      eta_min: 1.0e-7
+      eta_max: 5.0e-05
+    optimizer: AdamW
+    log_interval: 100
+    save_interval: 1000
+    output_dir: "outputs/"
+    from_checkpoint: "" # Path to load a checkpoint
+
+  # Imitation Learning Trainer
+  imitation:
+    exp_name: imitation-mlp
+    batch_size: 64
+    train_dataset: ""
 
 # ============ Environment Configuration ============
 env:
@@ -50,7 +79,7 @@ env:
         512: [255, 255, 255]
         1024: [255, 255, 255]
         2048: [255, 255, 255]
-    archive_file: envs/game2048.dat
+    archive_file: data/episode1.json # envs/game2048.dat
 
 # ============ RL Agent Configuration ============
 agent:
@@ -60,13 +89,13 @@ agent:
     strategy: online
     target_network:
       use: true
-      update_step: 500
+      update_step: 1000
       update_method: hard # hard or soft
       update_soft_tau: 0.8
     online:
       start_epsilon: 1.0
       end_epsilon: 0.05
-      epsilon_decay: 250000
+      epsilon_decay: 15000
     offline:
       action_logit:
         - 0.25
@@ -80,15 +109,15 @@ model:
   mlp:
     input_len: *env_dim
     input_embedding:
-      embedding_dim: 16
+      embedding_dim: 32
       num_embeddings: 32
     position_embedding:
       max_len: *env_dim
-      embedding_dim: 16
+      embedding_dim: 32
       mode: "sinusoidal" # "sinusoidal" or "learnable"
       method: "add" # "add" or "concat"
     feed_forward:
-      num_layers: 4
+      num_layers: 3
       hidden_dim: 64
       output_dim: *action_dim
       activation: "gelu"
@@ -116,22 +145,24 @@ model:
     activation: "gelu"
     output_dim: *action_dim
 
-# ============ Trainer Configuration ============
-trainer:
-  base:
-    exp_name: mlp-small
-    batch_size: 32
-    episode: &episode 50000
-    episode_max_step: 1000
-    replay_buffer_size: 50000
-    replay_buffer_size_min: 1000
-    learning_rate:
-      warmup_rate: 0.1
-      total_steps: *episode
-      eta_min: 0.0
-      eta_max: 1.0e-04
-    optimizer: Adam
-    log_interval: 50
-    save_interval: 1000
-    output_dir: "outputs/"
-
+  # transformer encoder
+  transformer:
+    input_len: *env_dim
+    input_embedding:
+      embedding_dim: 32
+      num_embeddings: 32
+    position_embedding:
+      max_len: *env_dim
+      embedding_dim: 32
+      mode: "sinusoidal" # "sinusoidal" or "learnable"
+      method: "add" # "add" or "concat"
+    block:
+      num_layers: 3
+      num_heads: 3
+      ffn_hidden_dim: 64
+      ffn_num_layers: 2
+      norm_type: "post" # "pre" or "post"
+      dropout: 0.0
+      activation: "gelu"
+      bias: false
+    output_dim: *action_dim
