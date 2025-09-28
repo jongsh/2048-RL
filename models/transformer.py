@@ -119,7 +119,7 @@ class TransformerEncoderPolicy(TransformerEncoderBase):
         if action_mask is not None:
             action_logits = action_logits.masked_fill(action_mask == 0, -1e9)
         action_probs = F.softmax(action_logits, dim=-1)
-        return action_probs, action_logits
+        return action_probs
 
 
 class TransformerEncoderValue(TransformerEncoderBase):

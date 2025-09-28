@@ -31,15 +31,14 @@ class BaseAgent(ABC):
     @abstractmethod
     def sample_action(self):
         """
-        Sample action given a state.
+        Sample action given a state. Used to add sample new episodes during training.
         """
         pass
 
     @abstractmethod
     def select_action(self):
         """
-        Given a state, select an action.
-        Returns the action (int or tensor), and internally may record log-prob or Q-values.
+        Given a state, select an action. Used during evaluation.
         """
         pass
 

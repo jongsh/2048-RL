@@ -52,7 +52,7 @@ class DQNAgent(BaseAgent):
         else:
             raise ValueError(f"Invalid strategy type {self.strategy}. Choose 'online' or 'offline'.")
 
-        # Other configurations
+        # other configurations
         self.action_space = self.agent_config["action_space"]
         self.gamma = self.agent_config["gamma"]
         self.device = self.public_config["device"]

@@ -40,7 +40,7 @@ class Game2048:
         self._add_random_tile()
         self._add_random_tile()
         info = {
-            "grid": self.grid,
+            "grid": deepcopy(self.grid),
             "score": self.score,
             "max_tile": max(max(row) for row in self.grid),
         }

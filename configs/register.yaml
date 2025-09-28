@@ -3,6 +3,7 @@ env:
 
 agent:
   - dqn
+  - imitation
 
 model:
   - mlp
@@ -10,4 +11,5 @@ model:
   - transformer
 
 trainer:
-  - base
+  - dqn
+  - imitation

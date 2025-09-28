@@ -34,8 +34,8 @@ def get_env(key):
 
 def main():
     parser = argparse.ArgumentParser(description="2048 RL")
-    parser.add_argument("--mode", type=str, required=True, help="Mode of operation: train | test | retrain")
     parser.add_argument("--config", type=str, default="configs/config.yaml", help="Path to config file")
+    parser.add_argument("--mode", type=str, required=True, help="Mode of operation: train | test | retrain")
 
     # Parse arguments
     args = parser.parse_args()
@@ -59,12 +59,13 @@ def main():
 
     # evaluate model
     elif mode == "test":
-        agent = get_agent(public_config["agent"])()
         checkpoint_dir = public_config["from_checkpoint"]
-        # 检测路径合法
         assert os.path.exists(checkpoint_dir), f"Checkpoint path {checkpoint_dir} does not exist!"
+
+        agent = get_agent(public_config["agent"])()
         agent.load(checkpoint_dir)
         env = get_env(public_config["env"])(silent_mode=False)
+
         obs, info = env.reset()
         env.render()
         actions = ["left", "right", "up", "down"]
@@ -79,6 +80,7 @@ def main():
 
             action = agent.select_action(obs, action_mask=info["action_mask"], method="sample")
             obs, reward, done, _, info = env.step(action)
+
             total_reward += reward
             print(f"Action: {actions[action]}, Reward: {reward}, Done: {done}")
             env.render()

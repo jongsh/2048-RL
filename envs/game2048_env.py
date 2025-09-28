@@ -1,6 +1,8 @@
 # 2048 game environment for reinforcement learning
 import math
 import time
+import json
+from datetime import datetime
 import gymnasium as gym
 import pygame
 import random
@@ -100,12 +102,12 @@ class Game2048Env(gym.Env):
         new_grid = np.array(new_info["grid"], dtype=np.int32)
         old_grid = np.array(old_info["grid"], dtype=np.int32)
 
-        normalnize_factor = 100
+        normalnize_factor = 100.0
         # 1. merge reward
         merge_reward = 0.0
         score_gain = new_info["score"] - old_info["score"]
         if score_gain > 0:
-            merge_reward += math.log2(score_gain + 1) * 0.1
+            merge_reward += math.log2(score_gain + 1) * 0.25
         merge_reward /= normalnize_factor
 
         # 2. space reward
@@ -179,7 +181,6 @@ if __name__ == "__main__":
         obs, reward, terminated, truncated, info = env.step(action)
         done = terminated or truncated
         print("Observation:\n", obs)
-        print("Info:\n", info)
         print(f"Action: {actions[action]}, Reward: {reward}, Done: {done}")
         env.render()
 

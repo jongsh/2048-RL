@@ -13,7 +13,7 @@ public:
 trainer:
   # DQN Trainer
   dqn:
-    exp_name: mlp-small
+    exp_name: mlp-small-dqn
     batch_size: 64
     train_episode: &train_episode 20000
     episode_max_step: 1000
@@ -34,9 +34,20 @@ trainer:
 
   # Imitation Learning Trainer
   imitation:
-    exp_name: imitation-mlp
-    batch_size: 64
-    train_dataset: ""
+    exp_name: mlp-small-imitation
+    batch_size: 32
+    data_file: "" # Path to imitation learning data file
+    train_epoch: 100
+    learning_rate:
+      warmup_rate: 0.1
+      total_steps: *train_episode
+      eta_min: 1.0e-7
+      eta_max: 5.0e-05
+    optimizer: AdamW
+    log_interval: 1
+    save_interval: 10
+    output_dir: "outputs/"
+    from_checkpoint: "" # Path to load a checkpoint
 
 # ============ Environment Configuration ============
 env:
@@ -79,10 +90,11 @@ env:
         512: [255, 255, 255]
         1024: [255, 255, 255]
         2048: [255, 255, 255]
-    archive_file: data/episode1.json # envs/game2048.dat
+    archive_file: envs/game2048.dat
 
 # ============ RL Agent Configuration ============
 agent:
+  # Deep Q-Network Agent
   dqn:
     gamma: 0.99
     action_space: *action_dim
@@ -97,13 +109,19 @@ agent:
       end_epsilon: 0.05
       epsilon_decay: 15000
     offline:
+      data_file: "" # Path to offline data file
       action_logit:
         - 0.25
         - 0.25
         - 0.25
         - 0.25
-# ============ Deep Learning Model Configuration ============
 
+  # Imitation Learning Agent
+  imitation:
+    gamma: 0.99
+    action_space: *action_dim
+
+# ============ Deep Learning Model Configuration ============
 model:
   # multi-layer perceptron
   mlp:
