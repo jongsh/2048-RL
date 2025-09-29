@@ -60,7 +60,7 @@ def main():
     # evaluate model
     elif mode == "test":
         checkpoint_dir = public_config["from_checkpoint"]
-        assert os.path.exists(checkpoint_dir), f"Checkpoint path {checkpoint_dir} does not exist!"
+        assert checkpoint_dir and os.path.exists(checkpoint_dir), f"Checkpoint path {checkpoint_dir} does not exist!"
 
         agent = get_agent(public_config["agent"])()
         agent.load(checkpoint_dir)

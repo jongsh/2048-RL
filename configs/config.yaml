@@ -3,11 +3,11 @@ public:
   env_dim: &env_dim 16
   action_dim: &action_dim 4
   env: game2048
-  agent: dqn
+  agent: imitation
   model: mlp
-  trainer: dqn
-  device: cuda:1
-  from_checkpoint: "" # Path to load a checkpoint
+  trainer: imitation
+  device: cpu
+  from_checkpoint: "" # test
 
 # ============ Trainer Configuration ============
 trainer:
@@ -16,8 +16,8 @@ trainer:
     exp_name: mlp-small-dqn
     batch_size: 64
     train_episode: &train_episode 20000
-    episode_max_step: 1000
-    train_update_interval: 5
+    episode_max_step: 5000
+    network_update_interval: 5
     replay_buffer_update_interval: 1
     replay_buffer_size: 100000
     replay_buffer_size_min: 10000
@@ -35,9 +35,10 @@ trainer:
   # Imitation Learning Trainer
   imitation:
     exp_name: mlp-small-imitation
-    batch_size: 32
-    data_file: "" # Path to imitation learning data file
+    data_file: "data/human_2048.json" # Path to imitation learning data file
+    batch_size: 64
     train_epoch: 100
+    episode_max_step: 5000
     learning_rate:
       warmup_rate: 0.1
       total_steps: *train_episode
@@ -118,7 +119,6 @@ agent:
 
   # Imitation Learning Agent
   imitation:
-    gamma: 0.99
     action_space: *action_dim
 
 # ============ Deep Learning Model Configuration ============

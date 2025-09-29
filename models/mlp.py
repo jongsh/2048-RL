@@ -46,7 +46,6 @@ class MLPBase(torch.nn.Module):
         pass
 
     def forward(self, x):
-        # x: (B, L)
         x = x.view(x.size(0), -1)  # Flatten the input to (B, L)
         x = self.embed(x)  # (B, L, embedding_dim)
         x = self.pos_encoder(x)  # (B, L, D)

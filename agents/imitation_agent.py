@@ -18,16 +18,17 @@ class ImitationAgent(BaseAgent):
     """
 
     def __init__(self, config=Configuration(), **kwargs):
-        super(ImitationAgent, self).__init__(kwargs)
+        super(ImitationAgent, self).__init__(**kwargs)
         self.agent_config = config.get_config("agent")
         self.public_config = config.get_config("public")
 
-        self.network = self._build_network(config)
+        # network
+        self.device = self.public_config["device"]
+        self.network = self._build_network(config).to(self.device)
 
         # other configurations
         self.action_space = self.agent_config["action_space"]
         self.gamma = self.agent_config["gamma"]
-        self.device = self.public_config["device"]
 
     def _build_network(self, config: Configuration):
         public_config = config.get_config("public")
@@ -61,23 +62,20 @@ class ImitationAgent(BaseAgent):
             )[0]
         return action
 
-    def update(self, states, actions, rewards, next_states, dones, action_mask, optimizer, loss_fn):
-        # Convert inputs to tensors
+    def update(self, states, actions, action_mask, optimizer, loss_fn):
+        # convert inputs to tensors
         states = self._torch(states, dtype=torch.int32)
         actions = self._torch(actions, dtype=torch.int64)
-        rewards = self._torch(rewards, dtype=torch.float32)
-        next_states = self._torch(next_states, dtype=torch.int32)
-        dones = self._torch(dones, dtype=torch.int32)
         action_mask = self._torch(action_mask, dtype=torch.int32)
 
-        # TODO: update network
+        # update network
         actions = actions.view(-1)  # shape (batch_size,)
         action_logits = self.network(states, action_mask=action_mask)
 
         loss = loss_fn(action_logits, actions)
         optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=10)
+        torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=10)
         optimizer.step()
         return loss.item()
 
@@ -92,3 +90,14 @@ class ImitationAgent(BaseAgent):
         model_path = os.path.join(dir_path, "model.pth")
         assert os.path.exists(model_path), f"Model path {model_path} does not exist!"
         self.network.load_state_dict(torch.load(model_path, map_location=self.device))
+
+
+if __name__ == "__main__":
+    agent = ImitationAgent()
+    states = torch.randint(0, 4, (5, 16))  # Example states
+    actions = torch.randint(0, 4, (5,))  # Example actions
+    action_mask = torch.ones((5, 4))  # Example action mask (all actions valid)
+    optimizer = torch.optim.Adam(agent.get_model().parameters(), lr=0.001)
+    loss_fn = torch.nn.CrossEntropyLoss()
+    agent.update(states, actions, action_mask, optimizer, loss_fn)
+    print("Imitation Agent updated successfully.")

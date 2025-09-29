@@ -347,7 +347,7 @@ def clean_data(save_file="data/human_2048.json", threshold_steps=450):
     _custom_save_json(new_data, save_file)
 
 
-def read_from(save_file, threshold_steps=450):
+def read_from_file(save_file, threshold_steps=450):
     """Read data from a specified file"""
     with open(save_file, "r", encoding="utf-8") as f:
         data = json.load(f)

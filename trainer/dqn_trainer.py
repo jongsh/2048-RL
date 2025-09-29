@@ -41,7 +41,7 @@ class DQNTrainer(Trainer):
         self.lr_config = self.train_config["learning_rate"]
         self.device = self.public_config["device"]
 
-        self.train_update_interval = self.train_config["train_update_interval"]
+        self.network_update_interval = self.train_config["network_update_interval"]
         self.update_replay_buffer_interval = self.train_config["replay_buffer_update_interval"]
         self.log_interval = self.train_config["log_interval"]
         self.save_interval = self.train_config["save_interval"]
@@ -132,7 +132,7 @@ class DQNTrainer(Trainer):
                         self.replay_buffer.add(state, action, reward, next_state, done, action_mask)
 
                     # Update the agent with a batch from the replay buffer
-                    if cur_episode_step % self.train_update_interval == 0:
+                    if cur_episode_step % self.network_update_interval == 0:
                         batch = self.replay_buffer.sample(self.batch_size)
                         assert batch is not None, "Replay buffer does not have enough samples for training"
                         loss = agent.update(*batch, optimizer, self.loss_fn)
