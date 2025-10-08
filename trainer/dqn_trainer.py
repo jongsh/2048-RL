@@ -49,19 +49,8 @@ class DQNTrainer(Trainer):
 
         self.logger.info("\n" + config.to_string() + "\n")
 
-    def _load_optimizer(self, optimizer_name):
-        if optimizer_name.lower() == "adam":
-            return torch.optim.Adam
-        elif optimizer_name.lower() == "sgd":
-            return torch.optim.SGD
-        elif optimizer_name.lower() == "adamw":
-            return torch.optim.AdamW
-        else:
-            raise ValueError(f"Unsupported optimizer: {optimizer_name}. Supported optimizers: 'adam', 'sgd'")
-
     def train(self, agent: BaseAgent, env, is_resume=False):
         """Train the agent in the environment"""
-
         if is_resume:  # resume training from a checkpoint
             assert self.from_checkpoint, "Checkpoint path must be provided for resuming training"
             optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.lr_config["eta_max"])
@@ -182,57 +171,57 @@ class DQNTrainer(Trainer):
                         f"Episode {ep}, Learning Rate: {optimizer.param_groups[0]['lr']:.10f}, Total Reward: {cur_episode_reward:.4f}, Total Steps: {cur_episode_step}, Avg Loss: {avg_loss:.4f}"
                     )
 
-            # save final model
-            self.logger.info(
-                f"Training finished, saving final model to {self.exp_dir}, total episodes: {self.episode}, total steps: {sum(episode_step_list)}, average reward: {sum(episode_reward_list)/len(episode_reward_list):.4f}"
-            )
-            self._save_checkpoint(
-                agent,
-                optimizer,
-                {
-                    "episode": ep,
-                    "cur_episode_reward": cur_episode_reward,
-                    "cur_episode_step": cur_episode_step,
-                    "avg_loss": avg_loss,
-                    "loss_list": train_loss_list,
-                    "reward_list": episode_reward_list,
-                    "step_list": episode_step_list,
-                },
-            )
+        # save final model
+        self.logger.info(
+            f"Training finished, saving final model to {self.exp_dir}, total episodes: {self.episode}, total steps: {sum(episode_step_list)}, average reward: {sum(episode_reward_list)/len(episode_reward_list):.4f}"
+        )
+        self._save_checkpoint(
+            agent,
+            optimizer,
+            {
+                "episode": ep,
+                "cur_episode_reward": cur_episode_reward,
+                "cur_episode_step": cur_episode_step,
+                "avg_loss": avg_loss,
+                "loss_list": train_loss_list,
+                "reward_list": episode_reward_list,
+                "step_list": episode_step_list,
+            },
+        )
 
-            # visualize training results
-            plot_training_history(
-                train_loss_list,
-                label="Training Loss",
-                xlabel="Episode",
-                ylabel="Loss",
-                title="Training Loss",
-                save_path=os.path.join(self.exp_dir, "training_loss.jpg"),
-                smooth_type="ma",
-                smooth_param=100,
-            )
-            plot_training_history(
-                episode_reward_list,
-                label="Episode Reward",
-                xlabel="Episode",
-                ylabel="Reward",
-                title="Episode Reward",
-                save_path=os.path.join(self.exp_dir, "episode_reward.jpg"),
-                smooth_type="ma",
-                smooth_param=100,
-            )
-            plot_training_history(
-                episode_step_list,
-                label="Episode Steps",
-                xlabel="Episode",
-                ylabel="Steps",
-                title="Episode Steps History",
-                save_path=os.path.join(self.exp_dir, "episode_steps.jpg"),
-                smooth_type="ma",
-                smooth_param=100,
-            )
+        # visualize training results
+        plot_training_history(
+            train_loss_list,
+            label="Training Loss",
+            xlabel="Episode",
+            ylabel="Loss",
+            title="Training Loss",
+            save_path=os.path.join(self.exp_dir, "training_loss.jpg"),
+            smooth_type="ma",
+            smooth_param=100,
+        )
+        plot_training_history(
+            episode_reward_list,
+            label="Episode Reward",
+            xlabel="Episode",
+            ylabel="Reward",
+            title="Episode Reward",
+            save_path=os.path.join(self.exp_dir, "episode_reward.jpg"),
+            smooth_type="ma",
+            smooth_param=100,
+        )
+        plot_training_history(
+            episode_step_list,
+            label="Episode Steps",
+            xlabel="Episode",
+            ylabel="Steps",
+            title="Episode Steps History",
+            save_path=os.path.join(self.exp_dir, "episode_steps.jpg"),
+            smooth_type="ma",
+            smooth_param=100,
+        )
 
-            self.logger.info("Training completed.")
+        self.logger.info("Training completed.")
 
     def _initialize_replay_buffer(self, env, agent: BaseAgent):
         """Initialize the replay buffer"""

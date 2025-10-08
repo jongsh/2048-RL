@@ -28,7 +28,6 @@ class ImitationAgent(BaseAgent):
 
         # other configurations
         self.action_space = self.agent_config["action_space"]
-        self.gamma = self.agent_config["gamma"]
 
     def _build_network(self, config: Configuration):
         public_config = config.get_config("public")
@@ -49,9 +48,11 @@ class ImitationAgent(BaseAgent):
     def select_action(self, state, action_mask=None, method="greedy"):
         if method == "random":
             return random.randint(0, self.action_space - 1)
-        state = self._torch(state, dtype=torch.int32).unsqueeze(0)
 
+        state = self._torch(state, dtype=torch.int32).unsqueeze(0)
+        action_mask = self._torch(action_mask, dtype=torch.int32).unsqueeze(0)
         action_logits = self.network(state, action_mask=action_mask)
+
         if method == "greedy":
             action = torch.argmax(action_logits, dim=1).item()
         elif method == "sample":
@@ -71,7 +72,6 @@ class ImitationAgent(BaseAgent):
         # update network
         actions = actions.view(-1)  # shape (batch_size,)
         action_logits = self.network(states, action_mask=action_mask)
-
         loss = loss_fn(action_logits, actions)
         optimizer.zero_grad()
         loss.backward()

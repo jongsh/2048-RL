@@ -347,8 +347,13 @@ def clean_data(save_file="data/human_2048.json", threshold_steps=450):
     _custom_save_json(new_data, save_file)
 
 
-def read_from_file(save_file, threshold_steps=450):
-    """Read data from a specified file"""
+def read_from_file(save_file, threshold_steps=450, shuffle=False):
+    """
+    Read data from a specified file.
+    The returned data only contains episodes with total steps >= threshold_steps.
+    Return a list of steps:
+        [{"state":..., "action_mask":..., "action":..., "reward":..., "next_state":..., "done":...}, ...]
+    """
     with open(save_file, "r", encoding="utf-8") as f:
         data = json.load(f)
     buffer = []
@@ -357,7 +362,9 @@ def read_from_file(save_file, threshold_steps=450):
             continue
         for step in ep["steps"]:
             buffer.append(step)
-    return data
+    if shuffle:
+        np.random.shuffle(buffer)
+    return buffer
 
 
 if __name__ == "__main__":

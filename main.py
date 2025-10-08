@@ -15,6 +15,11 @@ def get_agent(key):
 
         return DQNAgent
 
+    elif key == "imitation":
+        from agents.imitation_agent import ImitationAgent
+
+        return ImitationAgent
+
 
 # Function to get the trainer based on the key
 def get_trainer(key) -> Trainer:
@@ -22,6 +27,11 @@ def get_trainer(key) -> Trainer:
         from trainer.dqn_trainer import DQNTrainer
 
         return DQNTrainer
+
+    elif key == "imitation":
+        from trainer.imitation_trainer import ImitationTrainer
+
+        return ImitationTrainer
 
 
 # Function to get the environment based on the key

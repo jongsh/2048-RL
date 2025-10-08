@@ -28,9 +28,10 @@ class DQNAgent(BaseAgent):
         super(DQNAgent, self).__init__()
 
         # Initialize the Q-network and target network
-        self.q_network = self._build_network(config).to(device=self.public_config["device"])
+        self.device = self.public_config["device"]
+        self.q_network = self._build_network(config).to(device=self.device)
         if self.agent_config["target_network"]["use"]:
-            self.target_network = self._build_network(config).to(device=self.public_config["device"])
+            self.target_network = self._build_network(config).to(device=self.device)
             self.target_network.load_state_dict(self.q_network.state_dict())
             self.target_network_update_step = self.agent_config["target_network"]["update_step"]
             self.target_network_update_count = 0
@@ -55,7 +56,6 @@ class DQNAgent(BaseAgent):
         # other configurations
         self.action_space = self.agent_config["action_space"]
         self.gamma = self.agent_config["gamma"]
-        self.device = self.public_config["device"]
 
     def _build_network(self, config: Configuration):
         public_config = config.get_config("public")
@@ -122,11 +122,10 @@ class DQNAgent(BaseAgent):
     def select_action(self, state, action_mask=None, method="greedy"):
         if method == "random":
             return random.randint(0, self.action_space - 1)
+
         state = self._torch(state, dtype=torch.int32).unsqueeze(0)
-        q_values = self.q_network(
-            state,
-            action_mask=(self._torch(action_mask, dtype=torch.int32).unsqueeze(0) if action_mask is not None else None),
-        )
+        action_mask = self._torch(action_mask, dtype=torch.int32).unsqueeze(0) if action_mask is not None else None
+        q_values = self.q_network(state, action_mask)
         if method == "greedy":
             action = q_values.argmax(dim=1).item()
         elif method == "sample":
@@ -135,6 +134,7 @@ class DQNAgent(BaseAgent):
                 weights=torch.softmax(q_values, dim=1).squeeze(0).cpu().detach().numpy(),
                 k=1,
             )[0]
+
         return action
 
     def _update_target_network(self):
