@@ -18,7 +18,7 @@ def _custom_save_json(episode_data, save_file):
     with open(save_file, "w", encoding="utf-8") as f:
         f.write("{\n")
         f.write('  "metadata": ')
-        json.dump(metadata, f, indent=2, ensure_ascii=False)
+        json.dump(metadata, f, indent=4, ensure_ascii=False)
         f.write(',\n  "episodes": [\n')
 
         for ei, ep in enumerate(episodes):
@@ -318,6 +318,7 @@ def clean_data(save_file="data/human_2048.json", threshold_steps=450):
         "metadata": data["metadata"],
         "episodes": [],
     }
+    new_data["metadata"]["updated_at"] = datetime.now().isoformat()
     total_episodes = 0
     total_steps = 0
 
