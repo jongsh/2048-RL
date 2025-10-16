@@ -206,7 +206,7 @@ def collect_huamn_data(config=Configuration(), save_file="data/human_2048.json")
                             episode_data["metadata"]["total_steps"] = total_steps
                             os.makedirs(os.path.dirname(save_file), exist_ok=True)
                             _custom_save_json(episode_data, save_file)
-                            print(f"[✔] Saved episode #{current_episode['episode_id']} (total: {total_episodes})")
+                            print(f"[✔] Saved episode #{current_episode['episode_id']} (total steps: {total_steps})")
                             episode_saved = True
 
                     # RETRY button
