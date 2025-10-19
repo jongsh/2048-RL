@@ -45,7 +45,13 @@ def get_env(key):
 def main():
     parser = argparse.ArgumentParser(description="2048 RL")
     parser.add_argument("--config", type=str, default="configs/config.yaml", help="Path to config file")
-    parser.add_argument("--mode", type=str, required=True, help="Mode of operation: train | test | retrain")
+    parser.add_argument("--seed", type=int, default=2025, help="Random seed")
+    parser.add_argument("--train", action="store_true", help="Flag to indicate training mode")
+    parser.add_argument("--test", action="store_true", help="Flag to indicate testing mode")
+    parser.add_argument("--retrain", action="store_true", help="Flag to indicate retraining mode")
+    assert (
+        sum([parser.parse_args().train, parser.parse_args().test, parser.parse_args().retrain]) == 1
+    ), "Please specify exactly one mode: --train, --test, or --retrain"
 
     # Parse arguments
     args = parser.parse_args()

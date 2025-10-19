@@ -37,16 +37,16 @@ trainer:
     exp_name: mlp-small-imitation
     data_file: "data/human_2048.json" # Path to imitation learning data file
     batch_size: 64
-    train_epoch: 100
+    train_epoch: 1000
     episode_max_step: 5000
     learning_rate:
       warmup_rate: 0.1
       total_steps: *train_episode
-      eta_min: 1.0e-7
-      eta_max: 5.0e-05
+      eta_min: 1.0e-6
+      eta_max: 1.0e-4
     optimizer: AdamW
     log_interval: 1
-    save_interval: 10
+    save_interval: 100
     output_dir: "outputs/"
     from_checkpoint: "" # Path to load a checkpoint
 
