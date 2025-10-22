@@ -7,12 +7,14 @@ import gymnasium as gym
 import pygame
 import random
 import numpy as np
+
 from envs.game2048 import Game2048
 from configs.config import Configuration
 
 
 class Game2048Env(gym.Env):
-    def __init__(self, config: Configuration = Configuration(), silent_mode=True):
+    def __init__(self, config: Configuration = None, silent_mode=True):
+        config = config if config else Configuration()
         super(Game2048Env, self).__init__()
 
         self.game = Game2048(config=config, silent_mode=silent_mode)

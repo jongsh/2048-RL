@@ -7,11 +7,59 @@ import numpy as np
 
 from copy import deepcopy
 from datetime import datetime
+
 from envs.game2048_env import Game2048Env
 from configs.config import Configuration
+from agents.dqn_agent import DQNAgent
+from agents.imitation_agent import ImitationAgent
+
+
+def read_preprocess_2048_data(save_file, threshold_steps=450, shuffle=False):
+    """
+    Read data from a specified file.
+    The returned data only contains episodes with total steps >= threshold_steps.
+    Return a list of steps:
+        [{"state":..., "action_mask":..., "action":..., "reward":..., "next_state":..., "done":...}, ...]
+    """
+    data = _read_2048_data(save_file, create=False)
+    buffer = []
+    for ep in data["episodes"]:
+        if ep["total_steps"] < threshold_steps:
+            continue
+        for step in ep["steps"]:
+            buffer.append(step)
+    if shuffle:
+        np.random.shuffle(buffer)
+    return buffer
+
+
+def _read_2048_data(file, create=False):
+    """read data from json file, if not exist and create=True, create a new file"""
+    if os.path.exists(file) and os.path.getsize(file) > 0:
+        with open(file, "r", encoding="utf-8") as f:
+            try:
+                episode_data = json.load(f)
+            except json.JSONDecodeError:
+                print("[⚠] JSON 文件损坏或为空，重新创建。")
+                episode_data = None
+    else:
+        episode_data = None
+
+    if episode_data is None and create:
+        episode_data = {
+            "metadata": {
+                "env_name": "Game2048Env",
+                "created_at": datetime.now().isoformat(),
+                "total_episodes": 0,
+                "total_steps": 0,
+            },
+            "episodes": [],
+        }
+    return episode_data
 
 
 def _custom_save_json(episode_data, save_file):
+    # Custom function to save JSON data with specific formatting
     metadata = episode_data["metadata"]
     episodes = episode_data["episodes"]
 
@@ -41,85 +89,7 @@ def _custom_save_json(episode_data, save_file):
         f.write("  ]\n}\n")
 
 
-def _cal_new_reward(old_grid, new_grid, direction, done):
-    # restore actual tile values from log2 representation
-    old_grid = np.array(old_grid, dtype=np.int32)
-    old_grid = np.where(old_grid == 0, 0, 2**old_grid)
-    new_grid = np.array(new_grid, dtype=np.int32)
-    new_grid = np.where(new_grid == 0, 0, 2**new_grid)
-    grid_size = old_grid.shape[0]
-    direction = ["left", "right", "up", "down"][direction]
-
-    def process_row(row, reverse=False):
-        filtered = [x for x in (reversed(row) if reverse else row) if x != 0]
-        merged = []
-        score = 0
-        skip = False
-        for i in range(len(filtered)):
-            if skip:
-                skip = False
-                continue
-            if i + 1 < len(filtered) and filtered[i] == filtered[i + 1]:
-                merged.append(filtered[i] * 2)
-                score += filtered[i] * 2
-                skip = True
-            else:
-                merged.append(filtered[i])
-        padding = [0] * (grid_size - len(merged))
-        merged_row = (merged + padding) if not reverse else padding + merged[::-1]
-        return merged_row, score
-
-    def move(grid, direction):
-        total_score = 0
-        moved_grid = np.zeros_like(grid)
-        if direction == "left":
-            for i in range(grid_size):
-                row, s = process_row(grid[i, :], reverse=False)
-                moved_grid[i, :] = row
-                total_score += s
-        elif direction == "right":
-            for i in range(grid_size):
-                row, s = process_row(grid[i, :], reverse=True)
-                moved_grid[i, :] = row
-                total_score += s
-        elif direction == "up":
-            for j in range(grid_size):
-                col, s = process_row(grid[:, j], reverse=False)
-                moved_grid[:, j] = col
-                total_score += s
-        elif direction == "down":
-            for j in range(grid_size):
-                col, s = process_row(grid[:, j], reverse=True)
-                moved_grid[:, j] = col
-                total_score += s
-        return total_score
-
-    score_gain = move(deepcopy(old_grid), direction)
-
-    # merge reward
-    merge_reward = 0.0
-    if score_gain > 0:
-        merge_reward += math.log2(score_gain + 1) * 0.25
-
-    # space reward
-    empty_before = np.sum(old_grid == 0)
-    empty_after = np.sum(new_grid == 0)
-    space_reward = float((empty_after - empty_before) * 0.05)
-
-    # invalid reward
-    invalid_reward = -1.0 if np.array_equal(old_grid, new_grid) else 0.0
-
-    # done reward
-    done_reward = 0.0
-    if done:
-        done_reward = math.log2(np.max(new_grid)) ** 2 - 100
-
-    normalnize_factor = 100.0
-    total_reward = (merge_reward + space_reward + invalid_reward + done_reward) / normalnize_factor
-    return total_reward
-
-
-def collect_huamn_data(config=Configuration(), save_file="data/human_2048.json"):
+def collect_huamn_data(config, save_file="data/human_2048.json"):
     """Collect human gameplay data for imitation learning"""
 
     env = Game2048Env(config=config, silent_mode=False)
@@ -128,28 +98,7 @@ def collect_huamn_data(config=Configuration(), save_file="data/human_2048.json")
     clock = env.game.clock
     font = env.game.font
 
-    # read existing data if available
-    if os.path.exists(save_file) and os.path.getsize(save_file) > 0:
-        with open(save_file, "r", encoding="utf-8") as f:
-            try:
-                episode_data = json.load(f)
-            except json.JSONDecodeError:
-                print("[⚠] JSON 文件损坏或为空，重新创建。")
-                episode_data = None
-    else:
-        episode_data = None
-
-    if episode_data is None:
-        episode_data = {
-            "metadata": {
-                "env_name": "Game2048Env",
-                "grid_size": config["grid_size"],
-                "created_at": datetime.now().isoformat(),
-                "total_episodes": 0,
-                "total_steps": 0,
-            },
-            "episodes": [],
-        }
+    episode_data = _read_2048_data(save_file, create=True)
 
     total_steps = episode_data["metadata"].get("total_steps", 0)
     total_episodes = episode_data["metadata"].get("total_episodes", 0)
@@ -171,7 +120,6 @@ def collect_huamn_data(config=Configuration(), save_file="data/human_2048.json")
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_pos = pygame.mouse.get_pos()
-
                 # start game
                 if state == "menu":
                     start_btn = pygame.Rect(
@@ -204,11 +152,11 @@ def collect_huamn_data(config=Configuration(), save_file="data/human_2048.json")
                             total_episodes += 1
                             episode_data["metadata"]["total_episodes"] = total_episodes
                             episode_data["metadata"]["total_steps"] = total_steps
+                            episode_data["metadata"]["updated_at"] = datetime.now().isoformat()
                             os.makedirs(os.path.dirname(save_file), exist_ok=True)
                             _custom_save_json(episode_data, save_file)
                             print(f"[✔] Saved episode #{current_episode['episode_id']} (total steps: {total_steps})")
                             episode_saved = True
-
                     # RETRY button
                     retry_btn = pygame.Rect(
                         config["style"]["width"] // 2 - 100,
@@ -303,15 +251,151 @@ def collect_huamn_data(config=Configuration(), save_file="data/human_2048.json")
     pygame.quit()
 
 
-def collect_model_data(config=Configuration(), save_file="data/model_2048.json"):
+def collect_model_data(config, save_file="data/agent_2048.json", threshold=600, k=1000):
     """Collect gameplay data using a trained model for imitation learning"""
-    pass
+    public_config = config.get_config("public")
+    checkpoint_dir = public_config["from_checkpoint"]
+    assert checkpoint_dir and os.path.exists(checkpoint_dir), f"Checkpoint path {checkpoint_dir} does not exist!"
+
+    agent = (
+        DQNAgent()
+        if public_config["agent"] == "dqn"
+        else ImitationAgent() if public_config["agent"] == "imitation" else None
+    )
+    assert agent is not None, f"Unsupported agent type: {public_config['agent']}"
+    agent.load(checkpoint_dir)
+    env = Game2048Env(config=config, silent_mode=True)
+
+    # read existing data if available
+    episode_data = _read_2048_data(save_file, create=True)
+    total_steps = episode_data["metadata"].get("total_steps", 0)
+    total_episodes = episode_data["metadata"].get("total_episodes", 0)
+
+    # main loop
+    for _ in range(k):
+        obs, info = env.reset()
+        current_episode = {
+            "episode_id": total_episodes + 1,
+            "total_steps": 0,
+            "steps": [],
+        }
+        while True:
+            state_before = obs.tolist()
+            action_mask = info["action_mask"]
+            action = agent.select_action(obs, action_mask=action_mask, method="greedy")
+            obs, reward, done, _, info = env.step(action)
+            state_after = obs.tolist()
+            step_data = {
+                "state": state_before,
+                "action_mask": action_mask,
+                "action": action,
+                "reward": float(reward),
+                "next_state": state_after,
+                "done": done,
+            }
+            current_episode["steps"].append(step_data)
+            current_episode["total_steps"] += 1
+            if done:
+                break
+
+        if current_episode["total_steps"] >= threshold:
+            total_episodes += 1
+            total_steps += current_episode["total_steps"]
+            episode_data["episodes"].append(current_episode)
+            episode_data["metadata"]["total_episodes"] = total_episodes
+            episode_data["metadata"]["total_steps"] = total_steps
+            episode_data["metadata"]["updated_at"] = datetime.now().isoformat()
+            os.makedirs(os.path.dirname(save_file), exist_ok=True)
+            _custom_save_json(episode_data, save_file)
+            print(f"[✔] Saved episode #{current_episode['episode_id']} (steps: {current_episode['total_steps']})")
+        else:
+            print(f"[✕] Discarded episode #{current_episode['episode_id']} (steps: {current_episode['total_steps']})")
 
 
-def clean_data(save_file="data/human_2048.json", threshold_steps=450):
+def clean_data(save_file="data/human_2048.json", threshold_steps=500):
     """Clean collected data by removing short episodes, update new rewards"""
-    with open(save_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
+
+    def _cal_new_reward(old_grid, new_grid, direction, done):
+        # calculate new reward based on the old and new grid states
+        old_grid = np.array(old_grid, dtype=np.int32)
+        old_grid = np.where(old_grid == 0, 0, 2**old_grid)
+        new_grid = np.array(new_grid, dtype=np.int32)
+        new_grid = np.where(new_grid == 0, 0, 2**new_grid)
+        grid_size = old_grid.shape[0]
+        direction = ["left", "right", "up", "down"][direction]
+
+        def process_row(row, reverse=False):
+            filtered = [x for x in (reversed(row) if reverse else row) if x != 0]
+            merged = []
+            score = 0
+            skip = False
+            for i in range(len(filtered)):
+                if skip:
+                    skip = False
+                    continue
+                if i + 1 < len(filtered) and filtered[i] == filtered[i + 1]:
+                    merged.append(filtered[i] * 2)
+                    score += filtered[i] * 2
+                    skip = True
+                else:
+                    merged.append(filtered[i])
+            padding = [0] * (grid_size - len(merged))
+            merged_row = (merged + padding) if not reverse else padding + merged[::-1]
+            return merged_row, score
+
+        def move(grid, direction):
+            total_score = 0
+            moved_grid = np.zeros_like(grid)
+            if direction == "left":
+                for i in range(grid_size):
+                    row, s = process_row(grid[i, :], reverse=False)
+                    moved_grid[i, :] = row
+                    total_score += s
+            elif direction == "right":
+                for i in range(grid_size):
+                    row, s = process_row(grid[i, :], reverse=True)
+                    moved_grid[i, :] = row
+                    total_score += s
+            elif direction == "up":
+                for j in range(grid_size):
+                    col, s = process_row(grid[:, j], reverse=False)
+                    moved_grid[:, j] = col
+                    total_score += s
+            elif direction == "down":
+                for j in range(grid_size):
+                    col, s = process_row(grid[:, j], reverse=True)
+                    moved_grid[:, j] = col
+                    total_score += s
+            return total_score
+
+        score_gain = move(deepcopy(old_grid), direction)
+
+        # merge reward
+        merge_reward = 0.0
+        if score_gain > 0:
+            merge_reward += math.log2(score_gain + 1) * 0.25
+
+        # space reward
+        empty_before = np.sum(old_grid == 0)
+        empty_after = np.sum(new_grid == 0)
+        space_reward = float((empty_after - empty_before) * 0.05)
+
+        # invalid reward
+        invalid_reward = -1.0 if np.array_equal(old_grid, new_grid) else 0.0
+
+        # done reward
+        done_reward = 0.0
+        if done:
+            done_reward = math.log2(np.max(new_grid)) ** 2 - 100
+
+        normalnize_factor = 100.0
+        total_reward = (merge_reward + space_reward + invalid_reward + done_reward) / normalnize_factor
+        return total_reward
+
+    data = _read_2048_data(save_file, create=False)
+    if data is None:
+        print(f"[X] Data file {save_file} does not exist or is empty.")
+        return
 
     # metadata
     new_data = {
@@ -348,39 +432,27 @@ def clean_data(save_file="data/human_2048.json", threshold_steps=450):
     _custom_save_json(new_data, save_file)
 
 
-def read_from_file(save_file, threshold_steps=450, shuffle=False):
-    """
-    Read data from a specified file.
-    The returned data only contains episodes with total steps >= threshold_steps.
-    Return a list of steps:
-        [{"state":..., "action_mask":..., "action":..., "reward":..., "next_state":..., "done":...}, ...]
-    """
-    with open(save_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    buffer = []
-    for ep in data["episodes"]:
-        if ep["total_steps"] < threshold_steps:
-            continue
-        for step in ep["steps"]:
-            buffer.append(step)
-    if shuffle:
-        np.random.shuffle(buffer)
-    return buffer
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Collect data for 2048 RL")
     parser.add_argument("--config", type=str, default="configs/config.yaml", help="Path to config file")
-    parser.add_argument("--save_file", type=str, default="data/human_2048.json", help="Path to save collected data")
+    parser.add_argument("--file", type=str, required=False, help="Data file path")
     parser.add_argument("--mode", type=str, choices=["human", "model", "clean"], default="human", help="Data ")
 
     args = parser.parse_args()
-
     config = Configuration(config_path=args.config)
 
+    file = ""
+    if not args.file:
+        if args.mode == "human":
+            file = "data/human_2048.json"
+        elif args.mode == "model":
+            file = "data/agent_2048.json"
+        elif args.mode == "clean":
+            file = "data/human_2048.json"
+
     if args.mode == "human":
-        collect_huamn_data(config=config, save_file=args.save_file)
+        collect_huamn_data(config=config, save_file=file)
     elif args.mode == "model":
-        collect_model_data(config=config, save_file=args.save_file)
+        collect_model_data(config=config, save_file=file)
     elif args.mode == "clean":
-        clean_data(save_file=args.save_file, threshold_steps=450)
+        clean_data(save_file=file, threshold_steps=500)

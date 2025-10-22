@@ -17,7 +17,8 @@ class ImitationAgent(BaseAgent):
     Imitation learning is a type of supervised learning where the agent learns to mimic expert behavior by training on a dataset of state-action pairs collected from expert demonstrations. So this agent is just a wrapper around a neural network model that predicts actions given states.
     """
 
-    def __init__(self, config=Configuration(), **kwargs):
+    def __init__(self, config: Configuration = None, **kwargs):
+        config = config if config else Configuration()
         super(ImitationAgent, self).__init__(**kwargs)
         self.agent_config = config.get_config("agent")
         self.public_config = config.get_config("public")
@@ -29,7 +30,7 @@ class ImitationAgent(BaseAgent):
         # other configurations
         self.action_space = self.agent_config["action_space"]
 
-    def _build_network(self, config: Configuration):
+    def _build_network(self, config: Configuration = None):
         public_config = config.get_config("public")
         if public_config["model"] == "mlp":
             return MLPPolicy(config)

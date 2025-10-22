@@ -6,6 +6,21 @@ import numpy as np
 class ReplayBuffer:
     """Replay buffer for storing transitions in reinforcement learning"""
 
+    @classmethod
+    def from_data_list(cls, data_list):
+        length = len(data_list)
+        buffer = cls(capacity=length)
+        for transition in data_list:
+            buffer.add(
+                transition["state"],
+                transition["action"],
+                transition["reward"],
+                transition["next_state"],
+                transition["done"],
+                transition["action_mask"],
+            )
+        return buffer
+
     def __init__(self, capacity, min_capacity=0):
         self.capacity = capacity
         self.min_capacity = min_capacity

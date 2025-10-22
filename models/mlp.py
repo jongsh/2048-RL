@@ -10,7 +10,8 @@ from models.layers import FeedForward, AbsolutePositionalEncoding
 class MLPBase(torch.nn.Module):
     """Base class for MLP models"""
 
-    def __init__(self, config: Configuration = Configuration()):
+    def __init__(self, config: Configuration = None):
+        config = config if config else Configuration()
         self.model_config = config.get_config("model")
 
         super(MLPBase, self).__init__()
@@ -57,7 +58,8 @@ class MLPBase(torch.nn.Module):
 class MLPPolicy(MLPBase):
     """MLP model for policy"""
 
-    def __init__(self, config: Configuration = Configuration()):
+    def __init__(self, config: Configuration = None):
+        config = config if config else Configuration()
         super(MLPPolicy, self).__init__(config)
 
     def forward(self, x, action_mask=None):
@@ -71,7 +73,8 @@ class MLPPolicy(MLPBase):
 class MLPValue(MLPBase):
     """MLP model for value function"""
 
-    def __init__(self, config: Configuration = Configuration()):
+    def __init__(self, config: Configuration = None):
+        config = config if config else Configuration()
         super(MLPValue, self).__init__(config)
 
     def forward(self, x, action_mask=None):

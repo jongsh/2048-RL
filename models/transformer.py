@@ -51,7 +51,8 @@ class TransformerEncoderBlock(nn.Module):
 class TransformerEncoderBase(nn.Module):
     """Base class for Transformer encoder models"""
 
-    def __init__(self, config: Configuration = Configuration()):
+    def __init__(self, config: Configuration = None):
+        config = config if config else Configuration()
         super(TransformerEncoderBase, self).__init__()
         self.model_config = config.get_config("model")
         # token embedding
@@ -111,7 +112,8 @@ class TransformerEncoderBase(nn.Module):
 class TransformerEncoderPolicy(TransformerEncoderBase):
     """Transformer encoder model for policy"""
 
-    def __init__(self, config: Configuration = Configuration()):
+    def __init__(self, config: Configuration = None):
+        config = config if config else Configuration()
         super(TransformerEncoderPolicy, self).__init__(config)
 
     def forward(self, x, action_mask=None):
@@ -125,7 +127,8 @@ class TransformerEncoderPolicy(TransformerEncoderBase):
 class TransformerEncoderValue(TransformerEncoderBase):
     """Transformer encoder model for value"""
 
-    def __init__(self, config: Configuration = Configuration()):
+    def __init__(self, config: Configuration = None):
+        config = config if config else Configuration()
         super(TransformerEncoderValue, self).__init__(config)
 
     def forward(self, x, action_mask=None):

@@ -55,26 +55,25 @@ def main():
 
     # Parse arguments
     args = parser.parse_args()
-    mode = args.mode.lower()
     config_path = args.config
     public_config = Configuration(config_path=config_path).get_config("public")
 
     # train model from scratch
-    if mode == "train":
+    if args.train:
         trainer = get_trainer(public_config["trainer"])()
         agent = get_agent(public_config["agent"])()
         env = get_env(public_config["env"])()
         trainer.train(agent, env, is_resume=False)
 
     # retrain model
-    elif mode == "retrain":
+    elif args.retrain:
         trainer = get_trainer(public_config["trainer"])()
         agent = get_agent(public_config["agent"])()
         env = get_env(public_config["env"])()
         trainer.train(agent, env, is_resume=True)
 
     # evaluate model
-    elif mode == "test":
+    elif args.test:
         checkpoint_dir = public_config["from_checkpoint"]
         assert checkpoint_dir and os.path.exists(checkpoint_dir), f"Checkpoint path {checkpoint_dir} does not exist!"
 

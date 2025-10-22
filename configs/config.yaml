@@ -3,10 +3,10 @@ public:
   env_dim: &env_dim 16
   action_dim: &action_dim 4
   env: game2048
-  agent: imitation
+  agent: dqn
   model: mlp
-  trainer: imitation
-  device: cpu
+  trainer: dqn
+  device: cuda:1
   from_checkpoint: "" # use for testing
 
 # ============ Trainer Configuration ============
@@ -14,19 +14,26 @@ trainer:
   # DQN Trainer
   dqn:
     exp_name: mlp-small-dqn
+    strategy: online
+    online:
+      replay_buffer_update_interval: 1
+      replay_buffer_size: 100000
+      replay_buffer_size_min: 10000
+      start_epsilon: 1.0
+      end_epsilon: 0.05
+      epsilon_decay: 15000
+    offline:
+      data_files: ["data/human_2048.json", "data/agent_2048.json"] # Demonstration data files
     batch_size: 64
-    train_episode: &train_episode 20000
+    train_episode: &dqn_train_episode 20000
     episode_max_step: 5000
-    network_update_interval: 5
-    replay_buffer_update_interval: 1
-    replay_buffer_size: 100000
-    replay_buffer_size_min: 10000
     learning_rate:
       warmup_rate: 0.1
-      total_steps: *train_episode
+      total_steps: *dqn_train_episode
       eta_min: 1.0e-7
       eta_max: 5.0e-05
     optimizer: AdamW
+    network_update_interval: 5
     log_interval: 100
     save_interval: 1000
     output_dir: "outputs/"
@@ -34,18 +41,18 @@ trainer:
 
   # Imitation Learning Trainer
   imitation:
-    exp_name: mlp-small-imitation
-    data_file: "data/human_2048.json" # Path to imitation learning data file
+    exp_name: transformer-small-imitation
+    data_files: ["data/human_2048.json", "data/agent_2048.json"] # Demonstration data files
     batch_size: 64
-    train_epoch: 1000
+    train_epoch: &imitation_train_epoch 2000
     episode_max_step: 5000
     learning_rate:
       warmup_rate: 0.1
-      total_steps: *train_episode
-      eta_min: 1.0e-6
-      eta_max: 1.0e-4
+      total_steps: *imitation_train_epoch
+      eta_min: 5.0e-6
+      eta_max: 2.0e-4
     optimizer: AdamW
-    log_interval: 1
+    log_interval: 10
     save_interval: 100
     output_dir: "outputs/"
     from_checkpoint: "" # Path to load a checkpoint
@@ -56,23 +63,11 @@ agent:
   dqn:
     gamma: 0.99
     action_space: *action_dim
-    strategy: online
     target_network:
       use: true
       update_step: 1000
       update_method: hard # hard or soft
       update_soft_tau: 0.8
-    online:
-      start_epsilon: 1.0
-      end_epsilon: 0.05
-      epsilon_decay: 15000
-    offline:
-      data_file: "" # Path to offline data file
-      action_logit:
-        - 0.25
-        - 0.25
-        - 0.25
-        - 0.25
 
   # Imitation Learning Agent
   imitation:
@@ -93,7 +88,7 @@ model:
       method: "add" # "add" or "concat"
     feed_forward:
       num_layers: 3
-      hidden_dim: 64
+      hidden_dim: 128
       output_dim: *action_dim
       activation: "gelu"
       bias: true
@@ -104,11 +99,11 @@ model:
     input_height: 4
     input_width: 4
     input_embedding:
-      embedding_dim: &resnet_embedding_dim 16
+      embedding_dim: &resnet_embedding_dim 32
       num_embeddings: 32
     position_embedding:
       max_len: *env_dim
-      embedding_dim: 16
+      embedding_dim: *resnet_embedding_dim
       mode: "sinusoidal" # "sinusoidal" or "learnable"
       method: "add" # "add" or "concat"
     residual_block:
@@ -124,19 +119,19 @@ model:
   transformer:
     input_len: *env_dim
     input_embedding:
-      embedding_dim: 32
+      embedding_dim: 64
       num_embeddings: 32
     position_embedding:
       max_len: *env_dim
-      embedding_dim: 32
+      embedding_dim: 64
       mode: "sinusoidal" # "sinusoidal" or "learnable"
       method: "add" # "add" or "concat"
     block:
       num_layers: 3
-      num_heads: 3
+      num_heads: 4
       ffn_hidden_dim: 64
       ffn_num_layers: 2
-      norm_type: "post" # "pre" or "post"
+      norm_type: "pre" # "pre" or "post"
       dropout: 0.0
       activation: "gelu"
       bias: false

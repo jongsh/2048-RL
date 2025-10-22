@@ -1,14 +1,14 @@
 import torch
 import os
+import numpy as np
 
 from datetime import datetime
 from tqdm import tqdm
 
-from data.data_2048 import read_from_file
+from data.data_2048 import read_preprocess_2048_data
 from agents.base_agent import BaseAgent
 from trainer.trainer import Trainer
 from utils.logger import Logger
-from utils.replay_buffer import ReplayBuffer
 from utils.visualize import plot_training_history
 from utils.lr_scheduler import WarmupCosineLR
 from configs.config import Configuration
@@ -33,11 +33,12 @@ class ImitationDataset(torch.utils.data.Dataset):
 class ImitationTrainer(Trainer):
     """Imitation Learning Trainer for the RL Agent"""
 
-    def __init__(self, config: Configuration = Configuration(), **kwargs):
+    def __init__(self, config: Configuration = None, **kwargs):
+        config = config if config else Configuration()
         self.train_config = config.get_config("trainer")
         self.public_config = config.get_config("public")
         assert self.train_config["exp_name"], "Experiment name must be provided"
-        assert self.train_config["data_file"], "Data file path must be provided for imitation learning"
+        assert self.train_config["data_files"], "Data file path must be provided for imitation learning"
 
         super(ImitationTrainer, self).__init__(**kwargs)
 
@@ -56,7 +57,12 @@ class ImitationTrainer(Trainer):
         self.from_checkpoint = self.train_config["from_checkpoint"]
 
         # load data
-        self.dataset = ImitationDataset(read_from_file(self.train_config["data_file"]))
+        data_files = self.train_config["data_files"]
+        data_list = []
+        for data_file in data_files:
+            data_list.extend(read_preprocess_2048_data(data_file))
+        np.random.shuffle(data_list)
+        self.dataset = ImitationDataset(data_list)
         self.data_loader = torch.utils.data.DataLoader(
             self.dataset, batch_size=self.batch_size, shuffle=True, drop_last=True
         )

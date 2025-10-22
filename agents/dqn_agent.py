@@ -17,7 +17,8 @@ class DQNAgent(BaseAgent):
     The Q-network is updated based on the Bellman equation, while the target network is used to stabilize training
     """
 
-    def __init__(self, config: Configuration = Configuration(), **kwargs):
+    def __init__(self, config: Configuration = None, **kwargs):
+        config = config if config else Configuration()
         self.agent_config = config.get_config("agent")
         self.public_config = config.get_config("public")
         assert (
@@ -40,24 +41,11 @@ class DQNAgent(BaseAgent):
         else:
             self.target_network = None
 
-        # Online or offline training
-        self.strategy = self.agent_config["strategy"]
-        if self.strategy == "online":
-            self.epsilon_max = self.agent_config["online"]["start_epsilon"]
-            self.epsilon_min = self.agent_config["online"]["end_epsilon"]
-            self.epsilon_decay = self.agent_config["online"]["epsilon_decay"]
-            self.epsilon = self.epsilon_max
-            self.steps_done = 0
-        elif self.strategy == "offline":
-            self.sample_action_logit = self.agent_config["offline"]["action_logit"]
-        else:
-            raise ValueError(f"Invalid strategy type {self.strategy}. Choose 'online' or 'offline'.")
-
         # other configurations
         self.action_space = self.agent_config["action_space"]
         self.gamma = self.agent_config["gamma"]
 
-    def _build_network(self, config: Configuration):
+    def _build_network(self, config: Configuration = None):
         public_config = config.get_config("public")
         if public_config["model"] == "mlp":
             return MLPValue(config)
@@ -69,60 +57,34 @@ class DQNAgent(BaseAgent):
     def get_model(self):
         return self.q_network
 
-    def sample_action(self, state, action_mask=None, update_epsilon=True):
-        # offline learning: sample action based on predefined probabilities
-        if self.strategy == "offline":
-            sample_logit = self.sample_action_logit
+    def sample_action(self, state, action_mask=None, epsilon=0):
+        if random.random() < epsilon:  # select a random valid action
             if action_mask is not None:
-                masked_logit = [logit if mask else 0.0 for logit, mask in zip(sample_logit, action_mask)]
-                total = sum(masked_logit)
-                sample_logit = [logit / total for logit in masked_logit]
-            action = random.choices(
-                range(self.action_space),
-                weights=sample_logit,
-                k=1,
-            )[0]
-            return action
-        # online learning: epsilon-greedy strategy
-        elif self.strategy == "online":
-            if random.random() < self.epsilon:
-                # select a random valid action
-                if action_mask is not None:
-                    valid_actions = [i for i, valid in enumerate(action_mask) if valid]
-                    action = random.choice(valid_actions)
-                else:
-                    action = random.randint(0, self.action_space - 1)
+                valid_actions = [i for i, valid in enumerate(action_mask) if valid]
+                action = random.choice(valid_actions)
             else:
-                # select the action with highest Q-value
-                with torch.no_grad():
-                    action = (
-                        self.q_network(
-                            self._torch(state, dtype=torch.int32).unsqueeze(0),
-                            (
-                                self._torch(action_mask, dtype=torch.int32).unsqueeze(0)
-                                if action_mask is not None
-                                else None
-                            ),
-                        )
-                        .argmax(dim=1)
-                        .item()
+                action = random.randint(0, self.action_space - 1)
+        else:  # select the action with highest Q-value
+            with torch.no_grad():
+                action = (
+                    self.q_network(
+                        self._torch(state, dtype=torch.int32).unsqueeze(0),
+                        (self._torch(action_mask, dtype=torch.int32).unsqueeze(0) if action_mask is not None else None),
                     )
-            # Decay epsilon
-            if update_epsilon and self.steps_done <= self.epsilon_decay:
-                self.epsilon = max(
-                    self.epsilon_min,
-                    self.epsilon_max - (self.epsilon_max - self.epsilon_min) * self.steps_done / self.epsilon_decay,
+                    .argmax(dim=1)
+                    .item()
                 )
-                self.steps_done += 1
-            return action
-
-        else:
-            raise ValueError(f"Invalid strategy type {self.strategy}.")
+        return action
 
     def select_action(self, state, action_mask=None, method="greedy"):
+        assert method in [
+            "random",
+            "greedy",
+            "sample",
+        ], "Invalid action selection method, must be 'random', 'greedy' or 'sample'"
+
         if method == "random":
             return random.randint(0, self.action_space - 1)
-
         state = self._torch(state, dtype=torch.int32).unsqueeze(0)
         action_mask = self._torch(action_mask, dtype=torch.int32).unsqueeze(0) if action_mask is not None else None
         q_values = self.q_network(state, action_mask)
@@ -195,17 +157,6 @@ class DQNAgent(BaseAgent):
             target_network_path = os.path.join(dir_path, "target_network.pth")
             torch.save(self.target_network.state_dict(), target_network_path)
 
-        # save agent state
-        with open(os.path.join(dir_path, "agent_state.json"), "w") as f:
-            json.dump(
-                {
-                    "epsilon": self.epsilon,
-                    "steps_done": self.steps_done,
-                },
-                f,
-                indent=4,
-            )
-
     def load(self, dir_path):
         """Load the agent's model from the specified path"""
         # load model
@@ -216,12 +167,6 @@ class DQNAgent(BaseAgent):
             self.target_network.load_state_dict(
                 torch.load(target_network_path, map_location=self.device, weights_only=True)
             )
-
-        # load agent state
-        with open(os.path.join(dir_path, "agent_state.json"), "r") as f:
-            state = json.load(f)
-            self.epsilon = state.get("epsilon", self.epsilon)
-            self.steps_done = state.get("steps_done", self.steps_done)
 
 
 if __name__ == "__main__":

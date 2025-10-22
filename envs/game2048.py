@@ -15,7 +15,8 @@ class Game2048:
     2048 Game Implementation, with optional graphical interface using Pygame.
     """
 
-    def __init__(self, config: Configuration = Configuration(), silent_mode=True):
+    def __init__(self, config: Configuration = None, silent_mode=True):
+        config = config if config else Configuration()
         self.config = config.get_config("env")
         assert (
             self.config["grid_size"] ** 2 == self.config["grid_num"]
@@ -253,7 +254,8 @@ def replay(config, grid_history, action_history, delay=1500):
 
 
 # main game loop
-def main(config=Configuration()):
+def main(config: Configuration = None):
+    config = config if config else Configuration()
     # initialize game
     game = Game2048(config=config, silent_mode=False)
     config = game.config

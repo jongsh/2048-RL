@@ -54,7 +54,8 @@ class ResidualBlock(nn.Module):
 class ResNetBase(nn.Module):
     """Base class for ResNet models"""
 
-    def __init__(self, config: Configuration = Configuration()):
+    def __init__(self, config: Configuration = None):
+        config = config if config else Configuration()
         self.model_config = config.get_config("model")
         assert (
             self.model_config["input_len"] == self.model_config["input_width"] * self.model_config["input_height"]
@@ -133,7 +134,8 @@ class ResNetBase(nn.Module):
 class ResNetPolicy(ResNetBase):
     """ResNet model for policy"""
 
-    def __init__(self, config: Configuration = Configuration()):
+    def __init__(self, config: Configuration = None):
+        config = config if config else Configuration()
         super(ResNetPolicy, self).__init__(config)
 
     def forward(self, x, action_mask=None):
@@ -147,7 +149,8 @@ class ResNetPolicy(ResNetBase):
 class ResNetValue(ResNetBase):
     """ResNet model for value function"""
 
-    def __init__(self, config: Configuration = Configuration()):
+    def __init__(self, config: Configuration = None):
+        config = config if config else Configuration()
         super(ResNetValue, self).__init__(config)
 
     def forward(self, x, action_mask=None):
