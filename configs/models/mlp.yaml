@@ -1,0 +1,23 @@
+public:
+  env_dim: &env_dim 16
+  action_dim: &action_dim 4
+
+# multi-layer perceptron
+input_len: *env_dim
+
+input_embedding:
+  embedding_dim: 32
+  num_embeddings: 32
+
+position_embedding:
+  max_len: *env_dim
+  embedding_dim: 32
+  mode: "sinusoidal" # "sinusoidal" or "learnable"
+  method: "add" # "add" or "concat"
+
+feed_forward:
+  num_layers: 3
+  hidden_dim: 128
+  output_dim: *action_dim
+  activation: "gelu"
+  bias: true

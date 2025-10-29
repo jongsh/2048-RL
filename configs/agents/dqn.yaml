@@ -1,0 +1,12 @@
+public:
+  env_dim: &env_dim 16
+  action_dim: &action_dim 4
+
+# Deep Q-Network Agent
+gamma: 0.99
+action_space: *action_dim
+target_network:
+  use: true
+  update_step: 5000
+  update_method: hard # hard or soft
+  update_soft_tau: 0.1

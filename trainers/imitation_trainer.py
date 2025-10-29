@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from data.data_2048 import read_preprocess_2048_data
 from agents.base_agent import BaseAgent
-from trainer.trainer import Trainer
+from trainers.trainer import Trainer
 from utils.logger import Logger
 from utils.visualize import plot_training_history
 from utils.lr_scheduler import WarmupCosineLR
@@ -35,8 +35,7 @@ class ImitationTrainer(Trainer):
 
     def __init__(self, config: Configuration = None, **kwargs):
         config = config if config else Configuration()
-        self.train_config = config.get_config("trainer")
-        self.public_config = config.get_config("public")
+        self.train_config = config["trainer"]
         assert self.train_config["exp_name"], "Experiment name must be provided"
         assert self.train_config["data_files"], "Data file path must be provided for imitation learning"
 
@@ -50,7 +49,7 @@ class ImitationTrainer(Trainer):
         self.epoch = self.train_config["train_epoch"]
         self.episode_max_step = self.train_config["episode_max_step"]
         self.lr_config = self.train_config["learning_rate"]
-        self.device = self.public_config["device"]
+        self.device = config["device"]
 
         self.log_interval = self.train_config["log_interval"]
         self.save_interval = self.train_config["save_interval"]
@@ -75,11 +74,9 @@ class ImitationTrainer(Trainer):
         self.logger.info("\n" + config.to_string() + "\n")
         self.logger.info(f"human data size: {len(self.dataset)}")
 
-        # checkpoint
-        config.config["public"]["from_checkpoint"] = self.exp_dir  # update checkpoint path in config
-
     def train(self, agent: BaseAgent, env, is_resume=False):
         """Train the agent in the environment"""
+        agent.to(self.device)
         if is_resume:  # resume training from a checkpoint
             assert self.from_checkpoint, "Checkpoint path must be provided for resuming training"
             optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.lr_config["eta_max"])

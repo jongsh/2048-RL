@@ -1,0 +1,27 @@
+public:
+  env_dim: &env_dim 16
+  action_dim: &action_dim 4
+
+# transformer encoder
+input_len: *env_dim
+input_embedding:
+  embedding_dim: 64
+  num_embeddings: 32
+
+position_embedding:
+  max_len: *env_dim
+  embedding_dim: 64
+  mode: "sinusoidal" # "sinusoidal" or "learnable"
+  method: "add" # "add" or "concat"
+
+block:
+  num_layers: 3
+  num_heads: 4
+  ffn_hidden_dim: 64
+  ffn_num_layers: 2
+  norm_type: "pre" # "pre" or "post"
+  dropout: 0.0
+  activation: "gelu"
+  bias: false
+
+output_dim: *action_dim

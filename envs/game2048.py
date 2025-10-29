@@ -17,7 +17,7 @@ class Game2048:
 
     def __init__(self, config: Configuration = None, silent_mode=True):
         config = config if config else Configuration()
-        self.config = config.get_config("env")
+        self.config = config["env"]
         assert (
             self.config["grid_size"] ** 2 == self.config["grid_num"]
         ), f"Grid size {self.config['grid_size']} does not match grid number {self.config['grid_num']}"

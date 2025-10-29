@@ -5,7 +5,7 @@ from datetime import datetime
 from tqdm import tqdm
 
 from agents.base_agent import BaseAgent
-from trainer.trainer import Trainer
+from trainers.trainer import Trainer
 from utils.logger import Logger
 from utils.replay_buffer import ReplayBuffer
 from utils.visualize import plot_training_history
@@ -19,8 +19,7 @@ class DQNTrainer(Trainer):
 
     def __init__(self, config: Configuration = None, **kwargs):
         config = config if config else Configuration()
-        self.train_config = config.get_config("trainer")
-        self.public_config = config.get_config("public")
+        self.train_config = config["trainer"]
 
         assert self.train_config["exp_name"], "Experiment name must be provided"
         super(DQNTrainer, self).__init__(**kwargs)
@@ -29,7 +28,6 @@ class DQNTrainer(Trainer):
             self.train_config["output_dir"], self.train_config["exp_name"], datetime.now().strftime("%Y%m%d_%H%M%S")
         )
         self.logger = Logger(self.exp_dir, self.train_config["exp_name"])
-        config.config["public"]["from_checkpoint"] = self.exp_dir  # update checkpoint path in config
 
         # Initialize replay buffer
         self.strategy = self.train_config["strategy"]
@@ -63,12 +61,13 @@ class DQNTrainer(Trainer):
         self.log_interval = self.train_config["log_interval"]
         self.save_interval = self.train_config["save_interval"]
         self.from_checkpoint = self.train_config["from_checkpoint"]
-        self.device = self.public_config["device"]
+        self.device = config["device"]
 
         self.logger.info("\n" + config.to_string() + "\n")
 
     def train(self, agent: BaseAgent, env, is_resume=False):
         """Train the agent in the environment"""
+        agent.to(self.device)
         if is_resume:  # resume training from a checkpoint
             assert self.from_checkpoint, "Checkpoint path must be provided for resuming training"
             optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.lr_config["eta_max"])
@@ -77,7 +76,6 @@ class DQNTrainer(Trainer):
             if self.from_checkpoint and os.path.exists(self.from_checkpoint):  # load pre-trained model
                 self.logger.info(f"Loading pre-trained model from {self.from_checkpoint}")
                 agent.load(self.from_checkpoint)
-
             optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.lr_config["eta_max"])
             metadata = {
                 "episode": 0,

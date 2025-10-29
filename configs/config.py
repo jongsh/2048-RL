@@ -1,41 +1,43 @@
-import threading
 from omegaconf import OmegaConf
 
 
 class Configuration:
-    _instance = None
-    _lock = threading.Lock()
+    def __init__(self, config_path="configs/config.yaml", cli_args=None, from_scratch=True):
+        if from_scratch:  # Load configurations from multiple sources
+            self.config = OmegaConf.load(config_path)
+            self.config["env"] = OmegaConf.load(self.config["paths"]["env"])
+            self.config["agent"] = OmegaConf.load(self.config["paths"]["agent"])
+            self.config["model"] = OmegaConf.load(self.config["paths"]["model"])
+            self.config["trainer"] = OmegaConf.load(self.config["paths"]["trainer"])
+            # Override config with command-line arguments
+            if cli_args:
+                dotlist = [arg[2:] for arg in cli_args if arg.startswith("--")]
+                cli_conf = OmegaConf.from_dotlist(dotlist)
+                self.config = OmegaConf.merge(self.config, cli_conf)
 
-    def __new__(cls, config_path="configs/config.yaml", register_path="configs/register.yaml", cli_args=None):
-        if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super(Configuration, cls).__new__(cls)
-                    cls._instance._init(config_path, register_path, cli_args)
-        return cls._instance
+            if self._validate():
+                print("Configuration is valid.")
 
-    def _init(self, config_path, register_path, cli_args):
-        self.config = OmegaConf.load(config_path)
-        self.register = OmegaConf.load(register_path)
-        # Override config with command-line arguments
-        if cli_args:
-            dotlist = [arg[2:] for arg in cli_args if arg.startswith("--")]
-            cli_conf = OmegaConf.from_dotlist(dotlist)
-            self.config = OmegaConf.merge(self.config, cli_conf)
+        else:  # Load a pre-saved configuration
+            self.config = OmegaConf.load(config_path)
 
-        if self._validate():
-            print("Configuration is valid.")
+    def _validate(self):
+        """validate the configuration structure"""
+        public_section = None
+        for key in ["env", "agent", "model", "trainer"]:
+            if public_section is None:
+                public_section = self.config[key]["public"]
+            else:
+                for k, v in public_section.items():
+                    if k not in self.config[key]["public"] or self.config[key]["public"][k] != v:
+                        raise ValueError(
+                            f"All public configurations must be consistent across sections, but found inconsistency in key: {k}"
+                        )
+        return True
 
-        self.ret_config = {}
-        self.ret_config["public"] = self.config["public"]
-        self.ret_config["env"] = self.config["env"][self.config["public"]["env"]]
-        self.ret_config["agent"] = self.config["agent"][self.config["public"]["agent"]]
-        self.ret_config["model"] = self.config["model"][self.config["public"]["model"]]
-        self.ret_config["trainer"] = self.config["trainer"][self.config["public"]["trainer"]]
-
-    def get_config(self, key):
-        """Return the validated configuration"""
-        return self.ret_config[key] if key in self.ret_config else None
+    def __getitem__(self, key):
+        """Get a specific section of the configuration"""
+        return self.config.get(key, None)
 
     def save_config(self, dir_path):
         """Save the configuration to the specified directory"""
@@ -58,30 +60,9 @@ class Configuration:
                 return str(v)
 
         lines = ["=" * 10 + " Configuration Summary " + "=" * 10, ""]
-        for section, content in self.ret_config.items():
+        for section, content in self.config.items():
             lines.append(f"[{section}]")
             lines.append(format_value(content, indent=2))
             lines.append("")
         lines.append("=" * 40)
         return "\n".join(lines)
-
-    def _validate(self):
-        public_config = self.config["public"]
-
-        # Validate environment
-        if public_config["env"] not in self.register["env"]:
-            raise ValueError(f"Environment {public_config['env']} not registered.")
-
-        # Validate agent
-        if public_config["agent"] not in self.register["agent"]:
-            raise ValueError(f"Agent {public_config['agent']} is not registered.")
-
-        # Validate model
-        if public_config["model"] not in self.register["model"]:
-            raise ValueError(f"Model {public_config['model']} is not registered.")
-
-        # Validate trainer
-        if public_config["trainer"] not in self.register["trainer"]:
-            raise ValueError(f"Trainer {public_config['trainer']} is not registered.")
-
-        return True

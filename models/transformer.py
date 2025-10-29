@@ -54,7 +54,7 @@ class TransformerEncoderBase(nn.Module):
     def __init__(self, config: Configuration = None):
         config = config if config else Configuration()
         super(TransformerEncoderBase, self).__init__()
-        self.model_config = config.get_config("model")
+        self.model_config = config["model"]
         # token embedding
         self.embed = nn.Embedding(
             num_embeddings=self.model_config["input_embedding"]["num_embeddings"],

@@ -1,0 +1,36 @@
+public:
+  env_dim: &env_dim 16
+  action_dim: &action_dim 4
+
+# DQN Trainer
+exp_name: test
+train_episode: &dqn_train_episode 20000
+strategy: online
+
+online:
+  replay_buffer_update_interval: 1
+  replay_buffer_size: 100000
+  replay_buffer_size_min: 10000
+  start_epsilon: 1.0
+  end_epsilon: 0.05
+  epsilon_decay: 18000
+
+offline:
+  data_files: ["data/human_2048.json", "data/agent_2048.json"] # Demonstration data files
+
+batch_size: 128
+episode_max_step: 2000
+
+learning_rate:
+  warmup_rate: 0.12
+  total_steps: *dqn_train_episode
+  eta_min: 1.0e-6
+  eta_max: 5.0e-4
+
+optimizer: AdamW
+network_update_interval: 5
+log_interval: 100
+save_interval: 2000
+output_dir: "outputs/"
+from_checkpoint: "" # Path to load a checkpoint
+device: cuda:0

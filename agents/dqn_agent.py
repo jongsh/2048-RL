@@ -19,16 +19,14 @@ class DQNAgent(BaseAgent):
 
     def __init__(self, config: Configuration = None, **kwargs):
         config = config if config else Configuration()
-        self.agent_config = config.get_config("agent")
-        self.public_config = config.get_config("public")
+        self.agent_config = config["agent"]
 
         super(DQNAgent, self).__init__()
 
         # Initialize the Q-network and target network
-        self.device = self.public_config["device"]
-        self.q_network = self._build_network(config).to(device=self.device)
+        self.q_network = self._build_network(config)
         if self.agent_config["target_network"]["use"]:
-            self.target_network = self._build_network(config).to(device=self.device)
+            self.target_network = self._build_network(config)
             self.target_network.load_state_dict(self.q_network.state_dict())
             self.target_network_update_step = self.agent_config["target_network"]["update_step"]
             self.target_network_update_count = 0
@@ -41,15 +39,22 @@ class DQNAgent(BaseAgent):
         self.action_space = self.agent_config["action_space"]
         self.gamma = self.agent_config["gamma"]
         self.reward_normalizer = RunningNormalizer()
+        self.device = torch.device("cpu")
 
     def _build_network(self, config: Configuration = None):
-        public_config = config.get_config("public")
-        if public_config["model"] == "mlp":
+        model_name = config["components"]["model"]
+        if model_name == "mlp":
             return MLPValue(config)
-        elif public_config["model"] == "resnet":
+        elif model_name == "resnet":
             return ResNetValue(config)
-        elif public_config["model"] == "transformer":
+        elif model_name == "transformer":
             return TransformerEncoderValue(config)
+
+    def to(self, device):
+        self.q_network.to(device)
+        if self.target_network is not None:
+            self.target_network.to(device)
+        self.device = device
 
     def get_model(self):
         return self.q_network
@@ -63,13 +68,11 @@ class DQNAgent(BaseAgent):
                 action = random.randint(0, self.action_space - 1)
         else:  # sample the action according to the Q-values
             with torch.no_grad():
-                action_prob = torch.softmax(
-                    self.q_network(
-                        self._torch(state, dtype=torch.int32).unsqueeze(0),
-                        (self._torch(action_mask, dtype=torch.int32).unsqueeze(0) if action_mask is not None else None),
-                    ),
-                    dim=1,
+                state = self._torch(state, dtype=torch.int32).unsqueeze(0)
+                action_mask = (
+                    self._torch(action_mask, dtype=torch.int32).unsqueeze(0) if action_mask is not None else None
                 )
+                action_prob = torch.softmax(self.q_network(state, action_mask), dim=1)
                 action_dist = torch.distributions.Categorical(action_prob)
                 action = action_dist.sample().item()
         return action
@@ -157,16 +160,14 @@ class DQNAgent(BaseAgent):
             target_network_path = os.path.join(dir_path, "target_network.pth")
             torch.save(self.target_network.state_dict(), target_network_path)
 
-    def load(self, dir_path):
+    def load(self, dir_path, device=None):
         """Load the agent's model from the specified path"""
         # load model
         q_network_path = os.path.join(dir_path, "q_network.pth")
-        self.q_network.load_state_dict(torch.load(q_network_path, map_location=self.device, weights_only=True))
+        self.q_network.load_state_dict(torch.load(q_network_path, map_location=device, weights_only=True))
         if self.target_network is not None:
             target_network_path = os.path.join(dir_path, "target_network.pth")
-            self.target_network.load_state_dict(
-                torch.load(target_network_path, map_location=self.device, weights_only=True)
-            )
+            self.target_network.load_state_dict(torch.load(target_network_path, map_location=device, weights_only=True))
 
 
 if __name__ == "__main__":

@@ -56,7 +56,7 @@ class ResNetBase(nn.Module):
 
     def __init__(self, config: Configuration = None):
         config = config if config else Configuration()
-        self.model_config = config.get_config("model")
+        self.model_config = config["model"]
         assert (
             self.model_config["input_len"] == self.model_config["input_width"] * self.model_config["input_height"]
         ), f"Input length {self.model_config['input_len']} does not match width {self.model_config['input_width']} * height {self.model_config['input_height']}"

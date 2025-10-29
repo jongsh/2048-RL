@@ -1,0 +1,6 @@
+public:
+  env_dim: &env_dim 16
+  action_dim: &action_dim 4
+
+# Imitation Learning Agent
+action_space: *action_dim

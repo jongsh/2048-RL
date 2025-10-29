@@ -1,0 +1,28 @@
+public:
+  env_dim: &env_dim 16
+  action_dim: &action_dim 4
+
+# resnet model
+input_len: *env_dim
+input_height: 4
+input_width: 4
+
+input_embedding:
+  embedding_dim: &resnet_embedding_dim 32
+  num_embeddings: 32
+
+position_embedding:
+  max_len: *env_dim
+  embedding_dim: *resnet_embedding_dim
+  mode: "sinusoidal" # "sinusoidal" or "learnable"
+  method: "add" # "add" or "concat"
+
+residual_block:
+  num_blocks: 3
+  kernel_size: 3
+  stride: 1
+  padding: 1
+  hidden_dim: 64
+  
+activation: "gelu"
+output_dim: *action_dim

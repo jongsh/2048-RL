@@ -259,7 +259,7 @@ def collect_huamn_data(config, save_file="data/human_2048.json"):
 
 def collect_model_data(config, save_file="data/agent_2048.json", threshold=600, k=1000):
     """Collect gameplay data using a trained model for imitation learning"""
-    public_config = config.get_config("public")
+    public_config = config["public"]
     checkpoint_dir = public_config["from_checkpoint"]
     assert checkpoint_dir and os.path.exists(checkpoint_dir), f"Checkpoint path {checkpoint_dir} does not exist!"
 

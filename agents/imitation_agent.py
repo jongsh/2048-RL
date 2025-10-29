@@ -20,24 +20,25 @@ class ImitationAgent(BaseAgent):
     def __init__(self, config: Configuration = None, **kwargs):
         config = config if config else Configuration()
         super(ImitationAgent, self).__init__(**kwargs)
-        self.agent_config = config.get_config("agent")
-        self.public_config = config.get_config("public")
+        self.agent_config = config["agent"]
 
         # network
-        self.device = self.public_config["device"]
-        self.network = self._build_network(config).to(self.device)
+        self.network = self._build_network(config)
 
         # other configurations
         self.action_space = self.agent_config["action_space"]
 
     def _build_network(self, config: Configuration = None):
-        public_config = config.get_config("public")
-        if public_config["model"] == "mlp":
+        model_name = config["components"]["model"]
+        if model_name == "mlp":
             return MLPPolicy(config)
-        elif public_config["model"] == "resnet":
+        elif model_name == "resnet":
             return ResNetPolicy(config)
-        elif public_config["model"] == "transformer":
+        elif model_name == "transformer":
             return TransformerEncoderPolicy(config)
+
+    def to(self, device):
+        self.network.to(device)
 
     def get_model(self):
         return self.network
@@ -90,7 +91,7 @@ class ImitationAgent(BaseAgent):
     def load(self, dir_path):
         model_path = os.path.join(dir_path, "model.pth")
         assert os.path.exists(model_path), f"Model path {model_path} does not exist!"
-        self.network.load_state_dict(torch.load(model_path, map_location=self.device))
+        self.network.load_state_dict(torch.load(model_path))
 
 
 if __name__ == "__main__":

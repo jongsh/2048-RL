@@ -12,7 +12,7 @@ class MLPBase(torch.nn.Module):
 
     def __init__(self, config: Configuration = None):
         config = config if config else Configuration()
-        self.model_config = config.get_config("model")
+        self.model_config = config["model"]
 
         super(MLPBase, self).__init__()
         # Embedding layer
