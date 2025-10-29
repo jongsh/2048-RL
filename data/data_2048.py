@@ -65,9 +65,15 @@ def _custom_save_json(episode_data, save_file):
 
     with open(save_file, "w", encoding="utf-8") as f:
         f.write("{\n")
-        f.write('  "metadata": ')
-        json.dump(metadata, f, indent=4, ensure_ascii=False)
-        f.write(',\n  "episodes": [\n')
+        f.write('  "metadata": {\n')
+        for i, (key, value) in enumerate(metadata.items()):
+            comma = "," if i < len(metadata) - 1 else ""
+            if isinstance(value, str):
+                f.write(f'    "{key}": "{value}"{comma}\n')
+            else:
+                f.write(f'    "{key}": {value}{comma}\n')
+        f.write("  },\n")
+        f.write('  "episodes": [\n')
 
         for ei, ep in enumerate(episodes):
             f.write("    {\n")
@@ -373,7 +379,7 @@ def clean_data(save_file="data/human_2048.json", threshold_steps=500):
         # merge reward
         merge_reward = 0.0
         if score_gain > 0:
-            merge_reward += math.log2(score_gain + 1) * 0.25
+            merge_reward += math.log2(score_gain + 1) * 0.5
 
         # space reward
         empty_before = np.sum(old_grid == 0)
@@ -383,13 +389,15 @@ def clean_data(save_file="data/human_2048.json", threshold_steps=500):
         # invalid reward
         invalid_reward = -1.0 if np.array_equal(old_grid, new_grid) else 0.0
 
-        # done reward
-        done_reward = 0.0
-        if done:
-            done_reward = math.log2(np.max(new_grid)) ** 2 - 100
+        # max tile reward
+        max_tile_reward = 0.0
+        old_max_tile = np.max(old_grid)
+        new_max_tile = np.max(new_grid)
+        if new_max_tile > old_max_tile:
+            max_tile_reward += math.sqrt(new_max_tile) * 0.5
 
-        normalnize_factor = 100.0
-        total_reward = (merge_reward + space_reward + invalid_reward + done_reward) / normalnize_factor
+        # normalnize_factor = 100.0
+        total_reward = merge_reward + space_reward + invalid_reward + max_tile_reward
         return total_reward
 
     data = _read_2048_data(save_file, create=False)
@@ -441,7 +449,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config = Configuration(config_path=args.config)
 
-    file = ""
+    file = args.file
     if not args.file:
         if args.mode == "human":
             file = "data/human_2048.json"

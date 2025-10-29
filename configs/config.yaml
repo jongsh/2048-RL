@@ -6,36 +6,36 @@ public:
   agent: dqn
   model: mlp
   trainer: dqn
-  device: cuda:1
+  device: cuda:3
   from_checkpoint: "" # use for testing
 
 # ============ Trainer Configuration ============
 trainer:
   # DQN Trainer
   dqn:
-    exp_name: mlp-small-dqn
+    exp_name: mlp-middle-dqn-online
+    train_episode: &dqn_train_episode 20000
     strategy: online
     online:
       replay_buffer_update_interval: 1
       replay_buffer_size: 100000
-      replay_buffer_size_min: 10000
+      replay_buffer_size_min: 20000
       start_epsilon: 1.0
-      end_epsilon: 0.05
-      epsilon_decay: 15000
+      end_epsilon: 0.1
+      epsilon_decay: 18000
     offline:
       data_files: ["data/human_2048.json", "data/agent_2048.json"] # Demonstration data files
-    batch_size: 64
-    train_episode: &dqn_train_episode 20000
-    episode_max_step: 5000
+    batch_size: 512
+    episode_max_step: 2000
     learning_rate:
-      warmup_rate: 0.1
+      warmup_rate: 0.05
       total_steps: *dqn_train_episode
-      eta_min: 1.0e-7
-      eta_max: 5.0e-05
+      eta_min: 1.0e-6
+      eta_max: 5.0e-4
     optimizer: AdamW
     network_update_interval: 5
     log_interval: 100
-    save_interval: 1000
+    save_interval: 2000
     output_dir: "outputs/"
     from_checkpoint: "" # Path to load a checkpoint
 
@@ -43,14 +43,14 @@ trainer:
   imitation:
     exp_name: transformer-small-imitation
     data_files: ["data/human_2048.json", "data/agent_2048.json"] # Demonstration data files
-    batch_size: 64
+    batch_size: 32
     train_epoch: &imitation_train_epoch 2000
     episode_max_step: 5000
     learning_rate:
       warmup_rate: 0.1
       total_steps: *imitation_train_epoch
-      eta_min: 5.0e-6
-      eta_max: 2.0e-4
+      eta_min: 1.0e-7
+      eta_max: 2.0e-6
     optimizer: AdamW
     log_interval: 10
     save_interval: 100
@@ -65,9 +65,9 @@ agent:
     action_space: *action_dim
     target_network:
       use: true
-      update_step: 1000
-      update_method: hard # hard or soft
-      update_soft_tau: 0.8
+      update_step: 3000
+      update_method: soft # hard or soft
+      update_soft_tau: 0.1
 
   # Imitation Learning Agent
   imitation:
@@ -88,9 +88,9 @@ model:
       method: "add" # "add" or "concat"
     feed_forward:
       num_layers: 3
-      hidden_dim: 128
+      hidden_dim: 256
       output_dim: *action_dim
-      activation: "gelu"
+      activation: "relu"
       bias: true
 
   # resnet model

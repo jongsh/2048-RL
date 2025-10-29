@@ -1,24 +1,27 @@
-import yaml
 import threading
+from omegaconf import OmegaConf
 
 
 class Configuration:
     _instance = None
     _lock = threading.Lock()
 
-    def __new__(cls, config_path="configs/config.yaml", register_path="configs/register.yaml"):
+    def __new__(cls, config_path="configs/config.yaml", register_path="configs/register.yaml", cli_args=None):
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
                     cls._instance = super(Configuration, cls).__new__(cls)
-                    cls._instance._init(config_path, register_path)
+                    cls._instance._init(config_path, register_path, cli_args)
         return cls._instance
 
-    def _init(self, config_path, register_path):
-        with open(config_path, "r") as file:
-            self.config = yaml.safe_load(file)
-        with open(register_path, "r") as file:
-            self.register = yaml.safe_load(file)
+    def _init(self, config_path, register_path, cli_args):
+        self.config = OmegaConf.load(config_path)
+        self.register = OmegaConf.load(register_path)
+        # Override config with command-line arguments
+        if cli_args:
+            dotlist = [arg[2:] for arg in cli_args if arg.startswith("--")]
+            cli_conf = OmegaConf.from_dotlist(dotlist)
+            self.config = OmegaConf.merge(self.config, cli_conf)
 
         if self._validate():
             print("Configuration is valid.")
@@ -37,8 +40,7 @@ class Configuration:
     def save_config(self, dir_path):
         """Save the configuration to the specified directory"""
         save_path = f"{dir_path}/config.yaml"
-        with open(save_path, "w") as file:
-            yaml.dump(self.config, file)
+        OmegaConf.save(self.config, save_path)
 
     def to_string(self):
         """Return the configuration as a formatted string"""

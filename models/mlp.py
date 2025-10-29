@@ -32,7 +32,8 @@ class MLPBase(torch.nn.Module):
             input_dim = self.model_config["input_len"] * self.model_config["input_embedding"]["embedding_dim"]
         else:
             input_dim = self.model_config["input_len"] * (
-                self.model_config["embedding_dim"] + self.model_config["position_embedding"]["embedding_dim"]
+                self.model_config["input_embedding"]["embedding_dim"]
+                + self.model_config["position_embedding"]["embedding_dim"]
             )
         self.network = FeedForward(
             input_dim=input_dim,

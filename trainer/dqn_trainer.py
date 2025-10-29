@@ -43,7 +43,7 @@ class DQNTrainer(Trainer):
                 self.train_config["online"]["replay_buffer_size"], self.train_config["online"]["replay_buffer_size_min"]
             )
         elif self.strategy == "offline":
-            data_files = self.train_config["data_files"]
+            data_files = self.train_config["offline"]["data_files"]
             data_list = []
             for data_file in data_files:
                 data_list.extend(read_preprocess_2048_data(data_file))
@@ -83,10 +83,12 @@ class DQNTrainer(Trainer):
                 "episode": 0,
                 "cur_episode_reward": 0,
                 "cur_episode_step": 0,
-                "avg_loss": 0.0,
+                "cur_episode_max_tile": 0,
+                "cur_episode_loss": 0.0,
                 "loss_list": [],
                 "reward_list": [],
                 "step_list": [],
+                "max_tile_list": [],
             }
 
         warmup_steps = int(self.lr_config["warmup_rate"] * self.lr_config["total_steps"])
@@ -105,19 +107,21 @@ class DQNTrainer(Trainer):
         with tqdm(total=self.episode, desc="Training Progress") as pbar_epoch:
             # Initialize progress bar
             pbar_epoch.set_postfix(
-                episode=metadata["episode"],
                 reward=metadata["cur_episode_reward"],
                 steps=metadata["cur_episode_step"],
-                loss=metadata["avg_loss"],
+                # loss=metadata["avg_loss"],
+                max_tile=metadata["cur_episode_max_tile"],
             )
             pbar_epoch.update(metadata["episode"])
 
             # starting training
-            train_loss_list = metadata.get("loss_list")
-            episode_reward_list = metadata.get("reward_list")
-            episode_step_list = metadata.get("step_list")
+            episode_train_loss_list = metadata.get("loss_list", [])
+            episode_reward_list = metadata.get("reward_list", [])
+            episode_step_list = metadata.get("step_list", [])
+            episode_max_tile_list = metadata.get("max_tile_list", [])
 
             for ep in range(metadata["episode"] + 1, self.episode + 1):
+                cur_episode_max_tile = 0  # current max tile
                 cur_episode_reward = 0  # episode reward in the current epoch
                 cur_episode_step = 0  # steps in the current episode
                 cur_train_batch = 0  # total batch in the current episode
@@ -127,7 +131,7 @@ class DQNTrainer(Trainer):
                     # Update epsilon
                     self.epsilon = max(
                         self.epsilon_min,
-                        self.epsilon_max - (self.epsilon_max - self.epsilon_min) * ep / self.epsilon_decay,
+                        self.epsilon_max - (self.epsilon_max - self.epsilon_min) * (ep - 1) / self.epsilon_decay,
                     )
                     # interact with the environment to collect data and update agent
                     state, info = env.reset()
@@ -152,10 +156,11 @@ class DQNTrainer(Trainer):
                         state = next_state
                         action_mask = info["action_mask"]
                         cur_episode_reward += reward
+                    cur_episode_max_tile = info["max_tile"]
 
                 elif self.strategy == "offline":
                     # update agent from offline data
-                    for _ in range(self.episode_max_step):
+                    for _ in range(len(self.replay_buffer) // self.batch_size):
                         batch = self.replay_buffer.sample(self.batch_size)
                         assert batch is not None, "Replay buffer does not have enough samples for training"
                         loss = agent.update(*batch, optimizer, self.loss_fn)
@@ -172,15 +177,17 @@ class DQNTrainer(Trainer):
                         state = next_state
                         action_mask = info["action_mask"]
                         cur_episode_reward += reward
+                    cur_episode_max_tile = info["max_tile"]
 
                 # Update learning rate
                 scheduler.step()
 
                 # Store results for analysis
-                avg_loss = cur_train_loss / cur_train_batch if cur_train_batch > 0 else 0
-                train_loss_list.append(avg_loss)
+                cur_episode_loss = cur_train_loss / cur_train_batch if cur_train_batch > 0 else 0
+                episode_train_loss_list.append(cur_episode_loss)
                 episode_reward_list.append(cur_episode_reward)
                 episode_step_list.append(cur_episode_step)
+                episode_max_tile_list.append(cur_episode_max_tile)
 
                 # Save training progress
                 if ep % self.save_interval == 0:
@@ -190,10 +197,13 @@ class DQNTrainer(Trainer):
                         {
                             "episode": ep,
                             "cur_episode_reward": cur_episode_reward,
-                            "avg_loss": avg_loss,
-                            "loss_list": train_loss_list,
+                            "cur_episode_step": cur_episode_step,
+                            "cur_episode_max_tile": cur_episode_max_tile,
+                            "cur_episode_loss": cur_episode_loss,
+                            "loss_list": episode_train_loss_list,
                             "reward_list": episode_reward_list,
                             "step_list": episode_step_list,
+                            "max_tile_list": episode_max_tile_list,
                         },
                     )
 
@@ -202,14 +212,15 @@ class DQNTrainer(Trainer):
                 pbar_epoch.set_postfix(
                     reward=cur_episode_reward,
                     steps=cur_episode_step,
-                    loss=avg_loss,
+                    # loss=avg_loss,
                     lr=scheduler.get_last_lr()[0],
+                    max_tile=cur_episode_max_tile,
                 )
 
                 # Log the current episode results
                 if ep % self.log_interval == 0 or ep == self.episode:
                     self.logger.info(
-                        f"Episode {ep}, Learning Rate: {optimizer.param_groups[0]['lr']:.10f}, Total Reward: {cur_episode_reward:.4f}, Total Steps: {cur_episode_step}, Avg Loss: {avg_loss:.4f}"
+                        f"Episode {ep}, Learning Rate: {optimizer.param_groups[0]['lr']:.10f}, Reward/Avg Reward: {cur_episode_reward:.4f}/{sum(episode_reward_list[-self.log_interval:])/self.log_interval:.4f}, Steps/Avg Steps: {cur_episode_step}/{sum(episode_step_list[-self.log_interval:])/self.log_interval:.4f}, Loss/Avg Loss: {cur_episode_loss:.4f}/{sum(episode_train_loss_list[-self.log_interval:])/self.log_interval:.4f}, Max Tile/Avg Max Tile: {cur_episode_max_tile}/{sum(episode_max_tile_list[-self.log_interval:])/self.log_interval:.4f}"
                     )
 
         # save final model
@@ -220,19 +231,21 @@ class DQNTrainer(Trainer):
             agent,
             optimizer,
             {
-                "episode": ep,
+                "episode": self.episode,
                 "cur_episode_reward": cur_episode_reward,
                 "cur_episode_step": cur_episode_step,
-                "avg_loss": avg_loss,
-                "loss_list": train_loss_list,
+                "cur_episode_max_tile": cur_episode_max_tile,
+                "cur_episode_loss": cur_episode_loss,
+                "loss_list": episode_train_loss_list,
                 "reward_list": episode_reward_list,
                 "step_list": episode_step_list,
+                "max_tile_list": episode_max_tile_list,
             },
         )
 
         # visualize training results
         plot_training_history(
-            train_loss_list,
+            episode_train_loss_list,
             label="Training Loss",
             xlabel="Episode",
             ylabel="Loss",
@@ -261,7 +274,16 @@ class DQNTrainer(Trainer):
             smooth_type="ma",
             smooth_param=100,
         )
-
+        plot_training_history(
+            episode_max_tile_list,
+            label="Episode Max Tile",
+            xlabel="Episode",
+            ylabel="Max Tile",
+            title="Episode Max Tile History",
+            save_path=os.path.join(self.exp_dir, "episode_max_tile.jpg"),
+            smooth_type="ma",
+            smooth_param=100,
+        )
         self.logger.info("Training completed.")
 
     def _initialize_replay_buffer(self, env, agent: BaseAgent):
@@ -275,7 +297,7 @@ class DQNTrainer(Trainer):
             while not done and cur_episode_step < self.episode_max_step:
                 # Sample action from the agent
                 cur_episode_step += 1
-                action = agent.sample_action(state, action_mask, update_epsilon=False)
+                action = agent.sample_action(state, action_mask, epsilon=1.0)  # use random policy
                 next_state, reward, done, _, info = env.step(action)
 
                 # Add experience to the replay buffer

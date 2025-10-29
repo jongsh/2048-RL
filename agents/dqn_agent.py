@@ -1,14 +1,14 @@
 import torch
 import os
-import math
 import random
-import json
+import numpy as np
 
 from configs.config import Configuration
 from agents.base_agent import BaseAgent
 from models.mlp import MLPValue
 from models.resnet import ResNetValue
 from models.transformer import TransformerEncoderValue
+from utils.normalize import RunningNormalizer
 
 
 class DQNAgent(BaseAgent):
@@ -21,10 +21,6 @@ class DQNAgent(BaseAgent):
         config = config if config else Configuration()
         self.agent_config = config.get_config("agent")
         self.public_config = config.get_config("public")
-        assert (
-            len(self.agent_config["offline"]["action_logit"]) == self.agent_config["action_space"]
-        ), "The length of action_logit must match the action_space"
-        assert math.isclose(sum(self.agent_config["offline"]["action_logit"]), 1.0), "The action_logit must sum to 1.0"
 
         super(DQNAgent, self).__init__()
 
@@ -44,6 +40,7 @@ class DQNAgent(BaseAgent):
         # other configurations
         self.action_space = self.agent_config["action_space"]
         self.gamma = self.agent_config["gamma"]
+        self.reward_normalizer = RunningNormalizer()
 
     def _build_network(self, config: Configuration = None):
         public_config = config.get_config("public")
@@ -64,16 +61,17 @@ class DQNAgent(BaseAgent):
                 action = random.choice(valid_actions)
             else:
                 action = random.randint(0, self.action_space - 1)
-        else:  # select the action with highest Q-value
+        else:  # sample the action according to the Q-values
             with torch.no_grad():
-                action = (
+                action_prob = torch.softmax(
                     self.q_network(
                         self._torch(state, dtype=torch.int32).unsqueeze(0),
                         (self._torch(action_mask, dtype=torch.int32).unsqueeze(0) if action_mask is not None else None),
-                    )
-                    .argmax(dim=1)
-                    .item()
+                    ),
+                    dim=1,
                 )
+                action_dist = torch.distributions.Categorical(action_prob)
+                action = action_dist.sample().item()
         return action
 
     def select_action(self, state, action_mask=None, method="greedy"):
@@ -112,6 +110,8 @@ class DQNAgent(BaseAgent):
 
     def update(self, states, actions, rewards, next_states, dones, action_mask, optimizer, loss_fn):
         # Convert inputs to tensors
+        self.reward_normalizer.update(rewards)
+        rewards = self.reward_normalizer.normalize(rewards)
         states = self._torch(states, dtype=torch.int32)
         actions = self._torch(actions, dtype=torch.int64)
         rewards = self._torch(rewards, dtype=torch.float32)
@@ -135,7 +135,7 @@ class DQNAgent(BaseAgent):
 
         optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=10)
+        # torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=10)
         optimizer.step()
 
         # Update target network

@@ -49,14 +49,12 @@ def main():
     parser.add_argument("--train", action="store_true", help="Flag to indicate training mode")
     parser.add_argument("--test", action="store_true", help="Flag to indicate testing mode")
     parser.add_argument("--retrain", action="store_true", help="Flag to indicate retraining mode")
-    assert (
-        sum([parser.parse_args().train, parser.parse_args().test, parser.parse_args().retrain]) == 1
-    ), "Please specify exactly one mode: --train, --test, or --retrain"
 
     # Parse arguments
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
+    assert args.train + args.test + args.retrain == 1, "Please specify exactly one mode: --train, --test, or --retrain"
     config_path = args.config
-    public_config = Configuration(config_path=config_path).get_config("public")
+    public_config = Configuration(config_path=config_path, cli_args=unknown).get_config("public")
 
     # train model from scratch
     if args.train:
