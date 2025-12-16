@@ -3,10 +3,10 @@ public:
   action_dim: &action_dim 4
 
 # Deep Q-Network Agent
-gamma: 0.99
+gamma: 0.98
 action_space: *action_dim
 target_network:
   use: true
-  update_step: 5000
-  update_method: hard # hard or soft
-  update_soft_tau: 0.1
+  update_step: 2000
+  update_method: soft # hard or soft
+  update_soft_tau: 0.9

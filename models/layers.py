@@ -18,6 +18,8 @@ class ActivationFunction(nn.Module):
             self.activation = nn.Tanh()
         elif activation == "sigmoid":
             self.activation = nn.Sigmoid()
+        elif activation == "silu":
+            self.activation = nn.SiLU()
 
         else:
             raise ValueError(f"Unsupported activation function: {activation}")

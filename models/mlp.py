@@ -30,11 +30,14 @@ class MLPBase(torch.nn.Module):
         # Calculate input dimension
         if self.model_config["position_embedding"]["method"] == "add":
             input_dim = self.model_config["input_len"] * self.model_config["input_embedding"]["embedding_dim"]
-        else:
+        elif self.model_config["position_embedding"]["method"] == "concat":
             input_dim = self.model_config["input_len"] * (
                 self.model_config["input_embedding"]["embedding_dim"]
                 + self.model_config["position_embedding"]["embedding_dim"]
             )
+        else:
+            raise ValueError(f"Unknown position embedding method: {self.model_config['position_embedding']['method']}")
+
         self.network = FeedForward(
             input_dim=input_dim,
             hidden_dim=self.model_config["feed_forward"]["hidden_dim"],

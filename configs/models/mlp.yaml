@@ -19,5 +19,5 @@ feed_forward:
   num_layers: 3
   hidden_dim: 128
   output_dim: *action_dim
-  activation: "gelu"
-  bias: true
+  activation: "silu"
+  bias: false
