@@ -22,6 +22,7 @@ class Game2048Env(gym.Env):
 
         # game state
         self.info = self.game.reset()
+        self.action_names = ["left", "right", "up", "down"]
         self.action_space = gym.spaces.Discrete(4)  # 0: left, 1: right, 2: up, 3: down
         self.observation_space = gym.spaces.Box(
             low=0,
@@ -170,7 +171,7 @@ if __name__ == "__main__":
     env.reset()
     env.render()
 
-    actions = ["left", "right", "up", "down"]
+    actions = env.action_names
     running = True
     while running:
         print("\n" + "=" * 20)

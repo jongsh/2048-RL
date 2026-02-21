@@ -163,8 +163,8 @@ main/trained_models_cnn_mps/*
 *Studio*
 
 *DS_Store*
+.vscode/
 
 # store files
 *.dat
-
 outputs/

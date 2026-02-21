@@ -1,8 +1,7 @@
+import os
 import argparse
 import time
 import pygame
-import random
-import os
 
 from configs.config import Configuration
 from trainers.trainer import Trainer
@@ -83,7 +82,7 @@ def main():
 
         obs, info = env.reset()
         env.render()
-        actions = ["left", "right", "up", "down"]
+        actions = env.action_names
         running = True
         total_reward = 0
 
