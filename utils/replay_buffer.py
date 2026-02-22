@@ -138,6 +138,7 @@ class PrioritizedReplayBuffer:
                 transition["done"],
                 transition["action_mask"],
             )
+        return buffer
 
     def __init__(self, capacity, min_capacity=0, alpha=0.6):
         self.tree = SumTree(capacity)
@@ -157,28 +158,36 @@ class PrioritizedReplayBuffer:
         transition = (state, action, reward, next_state, done, action_mask)
         self.tree.add(self.max_priority, transition)
 
-    def sample(self, batch_size, beta=0.4):
+    def sample(self, batch_size, beta=0.4, use_per=True):
         # sample a batch of transitions based on their priorities and calculate importance-sampling weights
         if len(self) < self.min_capacity:
             return None
 
         batch, priorities, idxs = [], [], []
 
-        # divide the total priority into equal segments and sample one transition from each segment
-        segment = self.tree.total_priority() / batch_size
-        for i in range(batch_size):
-            left, right = segment * i, segment * (i + 1)
-            left, right = max(left, 0), min(right, self.tree.total_priority)
-            score = random.uniform(left, right)
-            priority, data, idx = self.tree.get(score)
-            idxs.append(idx)
-            priorities.append(priority)
-            batch.append(data)
+        # sample transitions based on their priorities using stratified sampling
+        if use_per:
+            segment = self.tree.total_priority / batch_size
+            for i in range(batch_size):
+                left, right = segment * i, segment * (i + 1)
+                left, right = max(left, 0), min(right, self.tree.total_priority)
+                score = random.uniform(left, right)
+                priority, data, idx = self.tree.get(score)
+                idxs.append(idx)
+                priorities.append(priority)
+                batch.append(data)
 
-        # calculate importance-sampling weights
-        sampling_probabilities = np.array(priorities) / self.tree.total_priority
-        is_weights = np.power(self.tree.size * sampling_probabilities, -beta)
-        is_weights /= is_weights.max()  # normalize for stability
+            # calculate importance-sampling weights
+            sampling_probabilities = np.array(priorities) / self.tree.total_priority
+            is_weights = np.power(self.tree.size * sampling_probabilities, -beta)
+            is_weights /= is_weights.max()  # normalize for stability
+
+        # uniform sampling without priorities
+        else:
+            indices = np.random.randint(0, self.tree.size, size=batch_size)
+            batch = [self.tree.data[i] for i in indices]
+            is_weights = np.ones(batch_size, dtype=np.float32)
+            idxs = [self.tree.capacity - 1 + i for i in indices]
 
         states, actions, rewards, next_states, dones, action_masks = zip(*batch)
         return (

@@ -14,7 +14,7 @@ buffer:
   use_per: true
   per_alpha: 0.6
   per_beta_start: 0.4
-  per_beta_frames: 100000
+  per_beta_episode: 10000
   update_interval: 1
 
 # online training parameters
