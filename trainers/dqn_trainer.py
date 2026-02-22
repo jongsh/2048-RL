@@ -7,7 +7,7 @@ from tqdm import tqdm
 from agents.base_agent import BaseAgent
 from trainers.trainer import Trainer
 from utils.logger import Logger
-from utils.replay_buffer import ReplayBuffer
+from utils.replay_buffer import PrioritizedReplayBuffer
 from utils.visualize import plot_training_history
 from utils.lr_scheduler import WarmupCosineLR
 from configs.config import Configuration
@@ -29,23 +29,36 @@ class DQNTrainer(Trainer):
         )
         self.logger = Logger(self.exp_dir, self.train_config["exp_name"])
 
-        # Initialize replay buffer
+        # prioritized replay buffer parameters
+        self.replay_buffer_config = self.train_config["buffer"]
+
+        # learn mode parameters
         self.strategy = self.train_config["strategy"]
         if self.strategy == "online":
+            # epsilon-greedy parameters
             self.epsilon_max = self.train_config["online"]["start_epsilon"]
             self.epsilon_min = self.train_config["online"]["end_epsilon"]
             self.epsilon_decay = self.train_config["online"]["epsilon_decay"]
             self.epsilon = self.epsilon_max
-            self.update_replay_buffer_interval = self.train_config["online"]["replay_buffer_update_interval"]
-            self.replay_buffer = ReplayBuffer(
-                self.train_config["online"]["replay_buffer_size"], self.train_config["online"]["replay_buffer_size_min"]
+            # replay buffer
+            self.replay_buffer = PrioritizedReplayBuffer(
+                capacity=self.replay_buffer_config["size"],
+                min_capacity=self.replay_buffer_config["min_size"],
+                alpha=self.replay_buffer_config["per_alpha"],
             )
         elif self.strategy == "offline":
+            # load offline data
             data_files = self.train_config["offline"]["data_files"]
             data_list = []
             for data_file in data_files:
                 data_list.extend(read_preprocess_2048_data(data_file))
-            self.replay_buffer = ReplayBuffer.from_data_list(data_list)
+            # create replay buffer from offline data
+            self.replay_buffer = PrioritizedReplayBuffer.from_data_list(
+                capacity=self.replay_buffer_config["size"],
+                min_capacity=self.replay_buffer_config["min_size"],
+                alpha=self.replay_buffer_config["per_alpha"],
+                data_list=data_list,
+            )
         else:
             raise ValueError(f"Invalid strategy type {self.train_config['strategy']}. Choose 'online' or 'offline'.")
 
@@ -55,8 +68,7 @@ class DQNTrainer(Trainer):
         self.lr_config = self.train_config["learning_rate"]
         self.optimizer_cls = self._load_optimizer(self.train_config["optimizer"])
         self.optimizer = None  # will be initialized during training
-        self.loss_fn = torch.nn.SmoothL1Loss()
-
+        self.loss_fn = torch.nn.SmoothL1Loss(reduction="none")
         self.network_update_interval = self.train_config["network_update_interval"]
         self.log_interval = self.train_config["log_interval"]
         self.save_interval = self.train_config["save_interval"]
@@ -125,8 +137,8 @@ class DQNTrainer(Trainer):
                 cur_train_batch = 0  # total batch in the current episode
                 cur_train_loss = 0.0  # current train loss
 
+                # update agent from online interaction data
                 if self.strategy == "online":
-                    # Update epsilon
                     self.epsilon = max(
                         self.epsilon_min,
                         self.epsilon_max - (self.epsilon_max - self.epsilon_min) * (ep - 1) / self.epsilon_decay,
@@ -141,27 +153,38 @@ class DQNTrainer(Trainer):
                         action = agent.sample_action(state, action_mask, self.epsilon)
                         next_state, reward, done, _, info = env.step(action)
                         # Add experience to the replay buffer
-                        if ep % self.update_replay_buffer_interval == 0:
+                        if ep % self.replay_buffer_config["update_interval"] == 0:
                             self.replay_buffer.add(state, action, reward, next_state, done, action_mask)
                         # Update the agent with a batch from the replay buffer
                         if cur_episode_step % self.network_update_interval == 0:
-                            batch = self.replay_buffer.sample(self.batch_size)
+                            beta = min(
+                                1.0,
+                                self.replay_buffer_config["per_beta_start"]
+                                + (1.0 - self.replay_buffer_config["per_beta_start"])
+                                * (ep - 1)
+                                / self.replay_buffer_config["per_beta_frames"],
+                            )
+                            batch = self.replay_buffer.sample(self.batch_size, beta=beta)
                             assert batch is not None, "Replay buffer does not have enough samples for training"
-                            loss = agent.update(*batch, optimizer, self.loss_fn)
+                            transitions, idxs = batch
+                            loss, td_errors = agent.update(*transitions, optimizer, self.loss_fn)
                             cur_train_batch += 1
                             cur_train_loss += loss
+                            self.replay_buffer.update_priorities(idxs, td_errors)
                         # Move to the next state
                         state = next_state
                         action_mask = info["action_mask"]
                         cur_episode_reward += reward
+
                     cur_episode_max_tile = info["max_tile"]
 
+                # update agent from offline data
                 elif self.strategy == "offline":
-                    # update agent from offline data
                     for _ in range(len(self.replay_buffer) // self.batch_size):
                         batch = self.replay_buffer.sample(self.batch_size)
                         assert batch is not None, "Replay buffer does not have enough samples for training"
-                        loss = agent.update(*batch, optimizer, self.loss_fn)
+                        transitions, idxs = batch
+                        loss, _ = agent.update(*transitions, optimizer, self.loss_fn)
                         cur_train_batch += 1
                         cur_train_loss += loss
                     # Evaluate the agent
@@ -297,7 +320,6 @@ class DQNTrainer(Trainer):
                 cur_episode_step += 1
                 action = agent.sample_action(state, action_mask, epsilon=1.0)  # use random policy
                 next_state, reward, done, _, info = env.step(action)
-
                 # Add experience to the replay buffer
                 self.replay_buffer.add(state, action, reward, next_state, done, action_mask)
 

@@ -126,9 +126,18 @@ class PrioritizedReplayBuffer:
     """
 
     @classmethod
-    def from_data_list(cls, capacity, min_capacity, alpha, data_list, priority_list):
-        # TODO: Implement this method to create a PrioritizedReplayBuffer from a list of transitions.
-        pass
+    def from_data_list(cls, capacity, min_capacity, alpha, data_list):
+        # create a PrioritizedReplayBuffer from a list of transitions.
+        buffer = cls(capacity=capacity, min_capacity=min_capacity, alpha=alpha)
+        for transition in data_list:
+            buffer.add(
+                transition["state"],
+                transition["action"],
+                transition["reward"],
+                transition["next_state"],
+                transition["done"],
+                transition["action_mask"],
+            )
 
     def __init__(self, capacity, min_capacity=0, alpha=0.6):
         self.tree = SumTree(capacity)
@@ -189,3 +198,22 @@ class PrioritizedReplayBuffer:
             priority = (abs(td_error) + self.epsilon) ** self.alpha
             self.tree.update(idx, priority)
             self.max_priority = max(self.max_priority, priority)
+
+    def save(self, dir_path):
+        # Save the replay buffer to disk
+        np.savez_compressed(
+            dir_path / "prioritized_replay_buffer.npz",
+            tree=self.tree.tree,
+            data=self.tree.data,
+            size=self.tree.size,
+            write=self.tree.write,
+        )
+
+    def load(self, dir_path):
+        # Load the replay buffer from disk
+        data = np.load(dir_path / "prioritized_replay_buffer.npz", allow_pickle=True)
+        assert data["data"].shape[0] <= self.capacity, "Loaded data exceeds buffer capacity!"
+        self.tree.tree = data["tree"]
+        self.tree.data = data["data"]
+        self.tree.size = data["size"]
+        self.tree.write = data["write"]

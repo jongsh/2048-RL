@@ -111,7 +111,18 @@ class DQNAgent(BaseAgent):
                     + param.data * self.target_network_update_method_soft_tau
                 )
 
-    def update(self, states, actions, rewards, next_states, dones, action_mask, optimizer, loss_fn):
+    def update(
+        self,
+        states: np.ndarray,
+        actions: np.ndarray,
+        rewards: np.ndarray,
+        next_states: np.ndarray,
+        dones: np.ndarray,
+        action_mask: np.ndarray,
+        is_weights: np.ndarray,
+        optimizer: torch.optim.Optimizer,
+        loss_fn: torch.nn.Module,
+    ):
         # Convert inputs to tensors
         self.reward_normalizer.update(rewards)
         rewards = self.reward_normalizer.normalize(rewards)
@@ -121,6 +132,7 @@ class DQNAgent(BaseAgent):
         next_states = self._torch(next_states, dtype=torch.int32)
         dones = self._torch(dones, dtype=torch.int32)
         action_mask = self._torch(action_mask, dtype=torch.int32)
+        is_weights = self._torch(is_weights, dtype=torch.float32)
 
         # Update Q-network
         q_values = self.q_network(states, action_mask)
@@ -128,13 +140,15 @@ class DQNAgent(BaseAgent):
 
         with torch.no_grad():
             if self.target_network is not None:
-                next_q_values = self.target_network(next_states, action_mask)
+                next_q_values = self.target_network(next_states)
             else:
                 next_q_values = self.q_network(next_states, action_mask)
             max_next_q_values = next_q_values.max(dim=1)[0]
             target_q_value = rewards + self.gamma * max_next_q_values * (1 - dones)
 
         loss = loss_fn(q_value, target_q_value)
+        loss = (loss * is_weights).mean()
+        td_errors = target_q_value - q_value
 
         optimizer.zero_grad()
         loss.backward()
@@ -148,7 +162,7 @@ class DQNAgent(BaseAgent):
                 self._update_target_network()
                 self.target_network_update_count = 0
 
-        return loss.item()
+        return loss.item(), td_errors.detach().cpu().numpy()
 
     def save(self, dir_path):
         """Save the agent's model and state to the specified path"""
@@ -177,8 +191,12 @@ if __name__ == "__main__":
     rewards = torch.randn(5)  # Example rewards
     next_states = torch.randint(0, 4, (5, 16))
     dones = torch.randint(0, 2, (5,))  # Example done flags
+    action_mask = torch.ones(5, 4)  # Example action mask (all actions valid)
+    is_weights = torch.ones(5)  # Example importance-sampling weights
     optimizer = torch.optim.Adam(agent.q_network.parameters(), lr=0.001)
-    loss_fn = torch.nn.MSELoss()
+    loss_fn = torch.nn.MSELoss(reduction="none")
     print(agent.sample_action(states[0]))  # Sample an action
-    agent.update(states, actions, rewards, next_states, dones, optimizer, loss_fn)
+    agent.update(
+        states, actions, rewards, next_states, dones, action_mask, is_weights, optimizer, loss_fn
+    )  # Update the agent
     print("DQN Agent updated successfully.")
