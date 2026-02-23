@@ -4,6 +4,8 @@ public:
 
 # DQN Trainer
 exp_name: test
+output_dir: "outputs/"
+from_checkpoint: "" # Path to load a checkpoint, leave empty for training from scratch
 train_episode: &dqn_train_episode 25000
 strategy: online
 
@@ -11,7 +13,7 @@ strategy: online
 online:
   start_epsilon: 1.0
   end_epsilon: 0.05
-  epsilon_decay: 20000
+  epsilon_decay: 22500
 
 # offline training parameters
 offline:
@@ -31,7 +33,7 @@ buffer:
 batch_size: 128
 episode_max_step: 2000
 learning_rate:
-  warmup_rate: 0.08
+  warmup_rate: 0.1
   total_steps: *dqn_train_episode
   eta_min: 1.0e-7
   eta_max: 1.0e-4
@@ -39,5 +41,3 @@ optimizer: AdamW
 network_update_interval: 1
 log_interval: 100
 save_interval: 2000
-output_dir: "outputs/"
-from_checkpoint: "" # Path to load a checkpoint

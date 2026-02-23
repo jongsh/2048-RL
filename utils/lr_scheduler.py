@@ -1,4 +1,5 @@
 import math
+import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import _LRScheduler
@@ -7,10 +8,14 @@ from torch.optim.lr_scheduler import _LRScheduler
 class WarmupCosineLR(_LRScheduler):
     """Learning rate scheduler with linear warmup and cosine annealing."""
 
-    def __init__(self, optimizer, warmup_steps, total_steps, eta_min=0, last_epoch=-1):
+    def __init__(self, optimizer: torch.optim.Optimizer, warmup_steps, total_steps, eta_min=0, last_epoch=-1):
         self.warmup_steps = warmup_steps
         self.total_steps = total_steps
         self.eta_min = eta_min
+        if last_epoch != -1:
+            for group in optimizer.param_groups:
+                initial_lr = group["lr"]
+                group.setdefault("initial_lr", initial_lr)
         super(WarmupCosineLR, self).__init__(optimizer, last_epoch)
 
     def get_lr(self):
@@ -30,17 +35,10 @@ class WarmupCosineLR(_LRScheduler):
 if __name__ == "__main__":
     model = nn.Linear(10, 1)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-
-    scheduler1 = WarmupCosineLR(optimizer, warmup_steps=5, total_steps=50, eta_min=1e-5, last_epoch=-1)
-    optimizer.step()
-    scheduler1.step()
-    optimizer.step()
-    optimizer.step()
-    scheduler1.step()
-
     scheduler2 = WarmupCosineLR(optimizer, warmup_steps=5, total_steps=50, eta_min=1e-5, last_epoch=0)
 
     for epoch in range(1, 50):
         optimizer.step()
-        print(f"Epoch {epoch+1}, lr = {scheduler2.get_lr()[0]:.6f}")
+        current_lr = optimizer.param_groups[0]["lr"]
+        print(f"Step {epoch+1}, lr = {current_lr:.6f}")
         scheduler2.step()

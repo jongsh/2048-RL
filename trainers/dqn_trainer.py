@@ -4,14 +4,11 @@ import os
 from datetime import datetime
 from tqdm import tqdm
 
-from agents.base_agent import BaseAgent
-from trainers.trainer import Trainer
-from utils.logger import Logger
-from utils.replay_buffer import PrioritizedReplayBuffer
-from utils.visualize import plot_training_history
-from utils.lr_scheduler import WarmupCosineLR
 from configs.config import Configuration
 from data.data_2048 import read_preprocess_2048_data
+from agents.base_agent import BaseAgent
+from trainers.trainer import Trainer
+from utils import Logger, PrioritizedReplayBuffer, plot_training_history, WarmupCosineLR
 
 
 class DQNTrainer(Trainer):
@@ -60,6 +57,7 @@ class DQNTrainer(Trainer):
             raise ValueError(f"Invalid strategy type {self.train_config['strategy']}. Choose 'online' or 'offline'.")
 
         # training parameters
+        self.device = config["device"]
         self.episode = self.train_config["train_episode"]
         self.episode_max_step = self.train_config["episode_max_step"]
         self.batch_size = self.train_config["batch_size"]
@@ -69,7 +67,6 @@ class DQNTrainer(Trainer):
         self.loss_fn = torch.nn.SmoothL1Loss(reduction="none")
         self.network_update_interval = self.train_config["network_update_interval"]
         self.from_checkpoint = self.train_config["from_checkpoint"]
-        self.device = config["device"]
         self.log_interval = self.train_config["log_interval"]
         self.save_interval = self.train_config["save_interval"]
 
@@ -85,6 +82,7 @@ class DQNTrainer(Trainer):
             assert self.from_checkpoint, "Checkpoint path must be provided for resuming training"
             optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.lr_config["eta_max"])
             metadata = self._load_checkpoint(agent, optimizer, self.from_checkpoint)
+
         # start training from scratch
         else:
             if self.from_checkpoint and os.path.exists(self.from_checkpoint):  # load pre-trained model
@@ -114,7 +112,8 @@ class DQNTrainer(Trainer):
         )
 
         # initialize replay buffer
-        self._initialize_replay_buffer(env, agent)
+        if self.strategy == "online" and len(self.replay_buffer) < self.replay_buffer_config["min_size"]:
+            self._initialize_replay_buffer(env, agent)
 
         # training loop
         with tqdm(total=self.episode, desc="Training Progress") as pbar_epoch:
@@ -148,11 +147,11 @@ class DQNTrainer(Trainer):
 
                     # interact with the environment to collect data and update agent
                     state, info = env.reset()
-                    action_mask = info["action_mask"]
                     done = False
                     while not done and cur_episode_step < self.episode_max_step:
                         # Sample action from the agent
                         cur_episode_step += 1
+                        action_mask = info["action_mask"]
                         action = agent.sample_action(state, action_mask, self.epsilon)
                         next_state, reward, done, _, info = env.step(action)
                         next_action_mask = info["action_mask"]
@@ -186,7 +185,6 @@ class DQNTrainer(Trainer):
 
                         # Move to the next state
                         state = next_state
-                        action_mask = next_action_mask
                         cur_episode_reward += reward
 
                     cur_episode_max_tile = info["max_tile"]
@@ -204,14 +202,13 @@ class DQNTrainer(Trainer):
 
                     # Evaluate the agent
                     state, info = env.reset()
-                    action_mask = info["action_mask"]
                     done = False
                     while not done and cur_episode_step < self.episode_max_step:
                         cur_episode_step += 1
+                        action_mask = info["action_mask"]
                         action = agent.select_action(state, action_mask, method="greedy")
                         next_state, reward, done, _, info = env.step(action)
                         state = next_state
-                        action_mask = info["action_mask"]
                         cur_episode_reward += reward
                     cur_episode_max_tile = info["max_tile"]
 
@@ -226,7 +223,7 @@ class DQNTrainer(Trainer):
                 episode_max_tile_list.append(cur_episode_max_tile)
 
                 # Save training progress
-                if ep % self.save_interval == 0:
+                if ep % self.save_interval == 0 or ep == self.episode:
                     self._save_checkpoint(
                         agent,
                         optimizer,
@@ -262,21 +259,6 @@ class DQNTrainer(Trainer):
         # save final model
         self.logger.info(
             f"Training finished, saving final model to {self.exp_dir}, total episodes: {self.episode}, total steps: {sum(episode_step_list)}, average reward: {sum(episode_reward_list)/len(episode_reward_list):.4f}"
-        )
-        self._save_checkpoint(
-            agent,
-            optimizer,
-            {
-                "episode": self.episode,
-                "cur_episode_reward": cur_episode_reward,
-                "cur_episode_step": cur_episode_step,
-                "cur_episode_max_tile": cur_episode_max_tile,
-                "cur_episode_loss": cur_episode_loss,
-                "loss_list": episode_train_loss_list,
-                "reward_list": episode_reward_list,
-                "step_list": episode_step_list,
-                "max_tile_list": episode_max_tile_list,
-            },
         )
 
         # visualize training results
@@ -346,7 +328,7 @@ class DQNTrainer(Trainer):
 
         self.logger.info(f"Replay buffer initialized with {len(self.replay_buffer)} transitions.")
 
-    def _save_checkpoint(self, agent: BaseAgent, optimizer, metadata):
+    def _save_checkpoint(self, agent: BaseAgent, optimizer: torch.optim.Optimizer, metadata: dict):
         """Save the checkpoint"""
         if metadata["episode"] >= self.episode:
             save_dir = os.path.join(self.exp_dir)
@@ -358,7 +340,7 @@ class DQNTrainer(Trainer):
         torch.save(metadata, os.path.join(save_dir, "metadata.pth"))
         Configuration().save_config(save_dir)
 
-    def _load_checkpoint(self, agent: BaseAgent, optimizer, checkpoint_dir):
+    def _load_checkpoint(self, agent: BaseAgent, optimizer: torch.optim.Optimizer, checkpoint_dir: str):
         """Load the checkpoint"""
         agent.load(checkpoint_dir)
         optimizer.load_state_dict(torch.load(os.path.join(checkpoint_dir, "optimizer.pth")))

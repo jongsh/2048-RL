@@ -14,26 +14,6 @@ from agents.dqn_agent import DQNAgent
 from agents.imitation_agent import ImitationAgent
 
 
-def read_preprocess_2048_data(save_file, threshold_steps=450, shuffle=False):
-    """
-    Read data from a specified file.
-    The returned data only contains episodes with total steps >= threshold_steps.
-    Return a list of steps:
-        [{"state":..., "action_mask":..., "action":..., "reward":..., "next_state":..., "next_action_mask":..., "done":...}, ...]
-     If shuffle=True, the order of steps will be shuffled.
-    """
-    data = _read_2048_data(save_file, create=False)
-    buffer = []
-    for ep in data["episodes"]:
-        if ep["total_steps"] < threshold_steps:
-            continue
-        for step in ep["steps"]:
-            buffer.append(step)
-    if shuffle:
-        np.random.shuffle(buffer)
-    return buffer
-
-
 def _read_2048_data(file, create=False):
     """read data from json file, if not exist and create=True, create a new file"""
     if os.path.exists(file) and os.path.getsize(file) > 0:
@@ -94,6 +74,26 @@ def _custom_save_json(episode_data, save_file):
                 f.write("\n")
 
         f.write("  ]\n}\n")
+
+
+def read_preprocess_2048_data(save_file, threshold_steps=450, shuffle=False):
+    """
+    Read data from a specified file.
+    The returned data only contains episodes with total steps >= threshold_steps.
+    Return a list of steps:
+        [{"state":..., "action_mask":..., "action":..., "reward":..., "next_state":..., "next_action_mask":..., "done":...}, ...]
+     If shuffle=True, the order of steps will be shuffled.
+    """
+    data = _read_2048_data(save_file, create=False)
+    buffer = []
+    for ep in data["episodes"]:
+        if ep["total_steps"] < threshold_steps:
+            continue
+        for step in ep["steps"]:
+            buffer.append(step)
+    if shuffle:
+        np.random.shuffle(buffer)
+    return buffer
 
 
 def collect_huamn_data(config, save_file="data/human_2048.json"):

@@ -179,29 +179,32 @@ class DQNAgent(BaseAgent):
             target_network_path = os.path.join(dir_path, "target_network.pth")
             torch.save(self.target_network.state_dict(), target_network_path)
 
-    def load(self, dir_path, device=None):
+    def load(self, dir_path, device="cpu"):
         """Load the agent's model from the specified path"""
         # load model
         q_network_path = os.path.join(dir_path, "q_network.pth")
         self.q_network.load_state_dict(torch.load(q_network_path, map_location=device, weights_only=True))
+        self.q_network.to(device)
         if self.target_network is not None:
             target_network_path = os.path.join(dir_path, "target_network.pth")
             self.target_network.load_state_dict(torch.load(target_network_path, map_location=device, weights_only=True))
+            self.target_network.to(device)
 
 
 if __name__ == "__main__":
     agent = DQNAgent()
     states = torch.randint(0, 4, (5, 16))  # Example states
     actions = torch.randint(0, 4, (5,))  # Example actions
+    action_mask = torch.ones(5, 4)  # Example action mask (all actions valid)
     rewards = torch.randn(5)  # Example rewards
     next_states = torch.randint(0, 4, (5, 16))
+    next_action_mask = torch.ones(5, 4)  # Example next action mask (all actions valid)
     dones = torch.randint(0, 2, (5,))  # Example done flags
-    action_mask = torch.ones(5, 4)  # Example action mask (all actions valid)
     is_weights = torch.ones(5)  # Example importance-sampling weights
     optimizer = torch.optim.Adam(agent.q_network.parameters(), lr=0.001)
     loss_fn = torch.nn.MSELoss(reduction="none")
     print(agent.sample_action(states[0]))  # Sample an action
     agent.update(
-        states, actions, rewards, next_states, dones, action_mask, is_weights, optimizer, loss_fn
-    )  # Update the agent
+        states, actions, action_mask, rewards, next_states, next_action_mask, dones, is_weights, optimizer, loss_fn
+    )
     print("DQN Agent updated successfully.")
