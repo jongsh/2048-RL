@@ -155,10 +155,13 @@ class DQNTrainer(Trainer):
                         cur_episode_step += 1
                         action = agent.sample_action(state, action_mask, self.epsilon)
                         next_state, reward, done, _, info = env.step(action)
+                        next_action_mask = info["action_mask"]
 
                         # Add experience to the replay buffer
                         if ep % self.replay_buffer_config["update_interval"] == 0:
-                            self.replay_buffer.add(state, action, reward, next_state, done, action_mask)
+                            self.replay_buffer.add(
+                                state, action, action_mask, reward, next_state, next_action_mask, done
+                            )
 
                         # Update the agent with a batch from the replay buffer
                         if cur_episode_step % self.network_update_interval == 0:
@@ -183,7 +186,7 @@ class DQNTrainer(Trainer):
 
                         # Move to the next state
                         state = next_state
-                        action_mask = info["action_mask"]
+                        action_mask = next_action_mask
                         cur_episode_reward += reward
 
                     cur_episode_max_tile = info["max_tile"]
@@ -335,10 +338,11 @@ class DQNTrainer(Trainer):
                 cur_episode_step += 1
                 action = agent.sample_action(state, action_mask, epsilon=1.0)  # use random policy
                 next_state, reward, done, _, info = env.step(action)
+                next_action_mask = info["action_mask"]
                 # Add experience to the replay buffer
-                self.replay_buffer.add(state, action, reward, next_state, done, action_mask)
+                self.replay_buffer.add(state, action, action_mask, reward, next_state, next_action_mask, done)
                 state = next_state
-                action_mask = info["action_mask"]
+                action_mask = next_action_mask
 
         self.logger.info(f"Replay buffer initialized with {len(self.replay_buffer)} transitions.")
 

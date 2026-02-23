@@ -117,10 +117,11 @@ class DQNAgent(BaseAgent):
         self,
         states: np.ndarray | torch.Tensor,
         actions: np.ndarray | torch.Tensor,
+        action_mask: np.ndarray | torch.Tensor,
         rewards: np.ndarray | torch.Tensor,
         next_states: np.ndarray | torch.Tensor,
+        next_action_mask: np.ndarray | torch.Tensor,
         dones: np.ndarray | torch.Tensor,
-        action_mask: np.ndarray | torch.Tensor,
         is_weights: np.ndarray | torch.Tensor,
         optimizer: torch.optim.Optimizer,
         loss_fn: torch.nn.Module,
@@ -128,10 +129,11 @@ class DQNAgent(BaseAgent):
         # Convert inputs to tensors
         states = self._torch(states, dtype=torch.int32)
         actions = self._torch(actions, dtype=torch.int64)
+        action_mask = self._torch(action_mask, dtype=torch.int32)
         rewards = self._torch(rewards, dtype=torch.float32)
         next_states = self._torch(next_states, dtype=torch.int32)
+        next_action_mask = self._torch(next_action_mask, dtype=torch.int32)
         dones = self._torch(dones, dtype=torch.int32)
-        action_mask = self._torch(action_mask, dtype=torch.int32)
         is_weights = self._torch(is_weights, dtype=torch.float32)
 
         # Normalize rewards
@@ -143,9 +145,9 @@ class DQNAgent(BaseAgent):
         q_value = q_values[range(states.size(0)), actions]
         with torch.no_grad():
             if self.target_network is not None:
-                next_q_values = self.target_network(next_states)  # TODO: action_mask for next states?
+                next_q_values = self.target_network(next_states, next_action_mask)
             else:
-                next_q_values = self.q_network(next_states)  # TODO: action_mask for next states?
+                next_q_values = self.q_network(next_states, next_action_mask)
             max_next_q_values = next_q_values.max(dim=-1)[0]
             target_q_value = rewards + self.gamma * max_next_q_values * (1 - dones)
 

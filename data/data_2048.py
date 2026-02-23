@@ -19,7 +19,8 @@ def read_preprocess_2048_data(save_file, threshold_steps=450, shuffle=False):
     Read data from a specified file.
     The returned data only contains episodes with total steps >= threshold_steps.
     Return a list of steps:
-        [{"state":..., "action_mask":..., "action":..., "reward":..., "next_state":..., "done":...}, ...]
+        [{"state":..., "action_mask":..., "action":..., "reward":..., "next_state":..., "next_action_mask":..., "done":...}, ...]
+     If shuffle=True, the order of steps will be shuffled.
     """
     data = _read_2048_data(save_file, create=False)
     buffer = []
@@ -205,6 +206,7 @@ def collect_huamn_data(config, save_file="data/human_2048.json"):
                         "action": action,
                         "reward": float(reward),
                         "next_state": obs_next.tolist(),
+                        "next_action_mask": new_info["action_mask"],
                         "done": done,
                     }
                     current_episode["steps"].append(step_data)
@@ -297,6 +299,7 @@ def collect_model_data(config, save_file="data/agent_2048.json", threshold=600, 
                 "action": action,
                 "reward": float(reward),
                 "next_state": state_after,
+                "next_action_mask": info["action_mask"],
                 "done": done,
             }
             current_episode["steps"].append(step_data)
