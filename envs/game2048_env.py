@@ -111,17 +111,14 @@ class Game2048Env(gym.Env):
         score_gain = new_info["score"] - old_info["score"]
         if score_gain > 0:
             merge_reward += math.log2(score_gain + 1) * 0.5
-        # merge_reward /= normalnize_factor
 
         # 2. space reward
         empty_before = np.sum(old_grid == 0)
         empty_after = np.sum(new_grid == 0)
         space_reward = float((empty_after - empty_before) * 0.05)
-        # space_reward /= normalnize_factor
 
         # 3. penalize invalid action
         invalid_reward = -1.0 if new_info["moved"] == False else 0.0
-        # invalid_reward /= normalnize_factor
 
         # 4. max tile reward
         old_max_tile = old_info["max_tile"]
@@ -129,7 +126,6 @@ class Game2048Env(gym.Env):
         max_tile_reward = 0.0
         if new_max_tile > old_max_tile:
             max_tile_reward += math.sqrt(new_max_tile) * 0.5
-        # max_tile_reward /= normalnize_factor
 
         # info
         info = {
@@ -142,7 +138,7 @@ class Game2048Env(gym.Env):
         return merge_reward + space_reward + invalid_reward + max_tile_reward, info
 
     def _monotonicity(self, grid):
-        """计算单调性"""
+        """calculate monotonicity score"""
         mono_score = 0
         for row in grid:
             mono_score += sum(max(0, row[i] - row[i + 1]) for i in range(len(row) - 1))
@@ -152,7 +148,7 @@ class Game2048Env(gym.Env):
         return 1.0 - mono_score / max_possible
 
     def _smoothness(self, grid):
-        """计算平滑性"""
+        """calculate smoothness score (penalize adjacent tiles with large differences)"""
         smooth_score = 0
         for i in range(self.env_config["grid_size"]):
             for j in range(self.env_config["grid_size"]):

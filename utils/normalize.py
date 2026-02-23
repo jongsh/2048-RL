@@ -4,7 +4,7 @@ import numpy as np
 class RunningNormalizer:
     """A running normalizer to normalize inputs online"""
 
-    def __init__(self, momentum=0.99, eps=1e-8):
+    def __init__(self, momentum=0.99, eps=1e-6):
         self.mean = 0.0
         self.var = 1.0
         self.momentum = momentum

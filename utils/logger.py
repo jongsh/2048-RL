@@ -20,8 +20,7 @@ class Logger:
         self.log_path = os.path.join(log_dir, f"{log_name}.log")
         self.logger = logging.getLogger(log_name)
         self.logger.setLevel(level)
-        self.logger.propagate = False  # 避免重复打印
-
+        self.logger.propagate = False  # prevent duplicate logs
         formatter = logging.Formatter(
             fmt="%(asctime)s [%(filename)s] [%(levelname)s]: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
         )

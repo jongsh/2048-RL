@@ -5,9 +5,7 @@ import numpy as np
 
 from configs.config import Configuration
 from agents.base_agent import BaseAgent
-from models.mlp import MLPValue
-from models.resnet import ResNetValue
-from models.transformer import TransformerEncoderValue
+from models import MLPValue, ResNetValue, TransformerEncoderValue
 from utils.normalize import RunningNormalizer
 
 
@@ -51,22 +49,24 @@ class DQNAgent(BaseAgent):
             return TransformerEncoderValue(config)
 
     def to(self, device):
+        self.device = device
         self.q_network.to(device)
         if self.target_network is not None:
             self.target_network.to(device)
-        self.device = device
 
     def get_model(self):
         return self.q_network
 
     def sample_action(self, state, action_mask=None, epsilon=0):
-        if random.random() < epsilon:  # select a random valid action
+        # select a random valid action
+        if random.random() < epsilon:
             if action_mask is not None:
                 valid_actions = [i for i, valid in enumerate(action_mask) if valid]
                 action = random.choice(valid_actions)
             else:
                 action = random.randint(0, self.action_space - 1)
-        else:  # sample the action according to the Q-values
+        # sample the action according to the Q-values
+        else:
             with torch.no_grad():
                 state = self._torch(state, dtype=torch.int32).unsqueeze(0)
                 action_mask = (
@@ -86,6 +86,7 @@ class DQNAgent(BaseAgent):
 
         if method == "random":
             return random.randint(0, self.action_space - 1)
+
         state = self._torch(state, dtype=torch.int32).unsqueeze(0)
         action_mask = self._torch(action_mask, dtype=torch.int32).unsqueeze(0) if action_mask is not None else None
         q_values = self.q_network(state, action_mask)
@@ -101,31 +102,30 @@ class DQNAgent(BaseAgent):
         return action
 
     def _update_target_network(self):
+        """Update the target network using either hard or soft update method"""
         assert self.target_network is not None, "Target network is not initialized."
         if self.target_network_update_method == "hard":
             self.target_network.load_state_dict(self.q_network.state_dict())
         elif self.target_network_update_method == "soft":
             for target_param, param in zip(self.target_network.parameters(), self.q_network.parameters()):
                 target_param.data.copy_(
-                    target_param.data * (1.0 - self.target_network_update_method_soft_tau)
-                    + param.data * self.target_network_update_method_soft_tau
+                    self.target_network_update_method_soft_tau * param.data
+                    + (1.0 - self.target_network_update_method_soft_tau) * target_param.data
                 )
 
     def update(
         self,
-        states: np.ndarray,
-        actions: np.ndarray,
-        rewards: np.ndarray,
-        next_states: np.ndarray,
-        dones: np.ndarray,
-        action_mask: np.ndarray,
-        is_weights: np.ndarray,
+        states: np.ndarray | torch.Tensor,
+        actions: np.ndarray | torch.Tensor,
+        rewards: np.ndarray | torch.Tensor,
+        next_states: np.ndarray | torch.Tensor,
+        dones: np.ndarray | torch.Tensor,
+        action_mask: np.ndarray | torch.Tensor,
+        is_weights: np.ndarray | torch.Tensor,
         optimizer: torch.optim.Optimizer,
         loss_fn: torch.nn.Module,
     ):
         # Convert inputs to tensors
-        self.reward_normalizer.update(rewards)
-        rewards = self.reward_normalizer.normalize(rewards)
         states = self._torch(states, dtype=torch.int32)
         actions = self._torch(actions, dtype=torch.int64)
         rewards = self._torch(rewards, dtype=torch.float32)
@@ -134,30 +134,33 @@ class DQNAgent(BaseAgent):
         action_mask = self._torch(action_mask, dtype=torch.int32)
         is_weights = self._torch(is_weights, dtype=torch.float32)
 
-        # Update Q-network
-        q_values = self.q_network(states, action_mask)
-        q_value = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
+        # Normalize rewards
+        self.reward_normalizer.update(rewards)
+        rewards = self.reward_normalizer.normalize(rewards)
 
+        # Compute current Q-values and target Q-values
+        q_values = self.q_network(states, action_mask)
+        q_value = q_values[range(states.size(0)), actions]
         with torch.no_grad():
             if self.target_network is not None:
-                next_q_values = self.target_network(next_states)
+                next_q_values = self.target_network(next_states)  # TODO: action_mask for next states?
             else:
-                next_q_values = self.q_network(next_states, action_mask)
-            max_next_q_values = next_q_values.max(dim=1)[0]
+                next_q_values = self.q_network(next_states)  # TODO: action_mask for next states?
+            max_next_q_values = next_q_values.max(dim=-1)[0]
             target_q_value = rewards + self.gamma * max_next_q_values * (1 - dones)
 
+        # Compute loss and update the Q-network
         loss = loss_fn(q_value, target_q_value)
         loss = (loss * is_weights).mean()
         td_errors = target_q_value - q_value
-
         optimizer.zero_grad()
         loss.backward()
-        # torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=10)
+        torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=10)
         optimizer.step()
 
         # Update target network
         if self.target_network is not None:
-            self.target_network_update_count += states.size(0)
+            self.target_network_update_count += 1
             if self.target_network_update_count >= self.target_network_update_step:
                 self._update_target_network()
                 self.target_network_update_count = 0

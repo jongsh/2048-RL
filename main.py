@@ -81,11 +81,10 @@ def main():
         env = get_env(component_config["env"])(config=config, silent_mode=False)
 
         obs, info = env.reset()
-        env.render()
         actions = env.action_names
         running = True
         total_reward = 0
-
+        env.render()
         while running:
             time.sleep(1.5)
             for event in pygame.event.get():

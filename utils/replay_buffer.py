@@ -125,21 +125,6 @@ class PrioritizedReplayBuffer:
     This implementation uses a SumTree to efficiently sample transitions based on their priorities.
     """
 
-    @classmethod
-    def from_data_list(cls, capacity, min_capacity, alpha, data_list):
-        # create a PrioritizedReplayBuffer from a list of transitions.
-        buffer = cls(capacity=capacity, min_capacity=min_capacity, alpha=alpha)
-        for transition in data_list:
-            buffer.add(
-                transition["state"],
-                transition["action"],
-                transition["reward"],
-                transition["next_state"],
-                transition["done"],
-                transition["action_mask"],
-            )
-        return buffer
-
     def __init__(self, capacity, min_capacity=0, alpha=0.6):
         self.tree = SumTree(capacity)
         self.capacity = capacity
@@ -157,6 +142,18 @@ class PrioritizedReplayBuffer:
     def add(self, state, action, reward, next_state, done, action_mask):
         transition = (state, action, reward, next_state, done, action_mask)
         self.tree.add(self.max_priority, transition)
+
+    def from_data_list(self, data_list):
+        # add a list of transitions to the buffer
+        for transition in data_list:
+            self.add(
+                transition["state"],
+                transition["action"],
+                transition["reward"],
+                transition["next_state"],
+                transition["done"],
+                transition["action_mask"],
+            )
 
     def sample(self, batch_size, beta=0.4, use_per=True):
         # sample a batch of transitions based on their priorities and calculate importance-sampling weights

@@ -24,6 +24,7 @@ class Game2048:
 
         self.config["style"]["width"] = self.config["grid_size"] * self.config["style"]["tile_size"]
         self.config["style"]["height"] = self.config["grid_size"] * self.config["style"]["tile_size"]
+        self.direction_map = {0: "left", 1: "right", 2: "up", 3: "down"}
         self.silent_mode = silent_mode  # silent mode for non-graphical operation
         self.reset()
 
@@ -49,8 +50,7 @@ class Game2048:
 
     # take action and return (done, info)
     def step(self, action, strict=False):
-        direction_map = {0: "left", 1: "right", 2: "up", 3: "down"}
-        direction = direction_map.get(action, None)
+        direction = self.direction_map.get(action, None)
         moved = self._move(direction)
         if strict:
             self._add_random_tile()
@@ -292,8 +292,8 @@ def main(config: Configuration = None):
             # mouse click event
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_pos = pygame.mouse.get_pos()
-
-                if state == "menu":  # menu buttons
+                # menu buttons
+                if state == "menu":
                     main_btn_rect = pygame.Rect(
                         config["style"]["width"] // 2 - 100,
                         config["style"]["height"] // 2 - 40,
@@ -317,7 +317,8 @@ def main(config: Configuration = None):
                         replay(config, grid_history, action_history)
                         state = "menu"
 
-                elif state == "game_over":  # game over buttons
+                # game over buttons
+                elif state == "game_over":
                     restart_btn_rect = pygame.Rect(
                         config["style"]["width"] // 2 - 100,
                         config["style"]["height"] // 2,
@@ -346,18 +347,17 @@ def main(config: Configuration = None):
                 if event.key == pygame.K_ESCAPE:
                     state = "menu"
                     game = None
-
                 else:
-                    action = (
-                        0
-                        if event.key == pygame.K_LEFT
-                        else (
-                            1
-                            if event.key == pygame.K_RIGHT
-                            else 2 if event.key == pygame.K_UP else 3 if event.key == pygame.K_DOWN else None
-                        )
-                    )
-
+                    if event.key == pygame.K_LEFT:
+                        action = 0
+                    elif event.key == pygame.K_RIGHT:
+                        action = 1
+                    elif event.key == pygame.K_UP:
+                        action = 2
+                    elif event.key == pygame.K_DOWN:
+                        action = 3
+                    else:
+                        continue
                     _, info = game.step(action)
                     game._render_grid()
                     if info["moved"]:

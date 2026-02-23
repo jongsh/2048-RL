@@ -7,16 +7,6 @@ exp_name: test
 train_episode: &dqn_train_episode 25000
 strategy: online
 
-# replay buffer
-buffer:
-  size: 100000
-  min_size: 10000
-  use_per: true
-  per_alpha: 0.6
-  per_beta_start: 0.4
-  per_beta_episode: 10000
-  update_interval: 1
-
 # online training parameters
 online:
   start_epsilon: 1.0
@@ -26,6 +16,16 @@ online:
 # offline training parameters
 offline:
   data_files: ["data/human_2048.json", "data/agent_2048.json"] # Demonstration data files
+
+# replay buffer
+buffer:
+  size: 100000
+  min_size: 10000
+  use_per: true
+  per_alpha: 0.6
+  per_beta_start: 0.4
+  per_beta_episode: 10000
+  update_interval: 1
 
 # training parameters
 batch_size: 128

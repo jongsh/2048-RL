@@ -18,63 +18,62 @@ class DQNTrainer(Trainer):
     """DQN Trainer for the RL Agent"""
 
     def __init__(self, config: Configuration = None, **kwargs):
+        # load training configuration
         config = config if config else Configuration()
         self.train_config = config["trainer"]
-
         assert self.train_config["exp_name"], "Experiment name must be provided"
         super(DQNTrainer, self).__init__(**kwargs)
 
+        # setup experiment directory and logger
         self.exp_dir = os.path.join(
             self.train_config["output_dir"], self.train_config["exp_name"], datetime.now().strftime("%Y%m%d_%H%M%S")
         )
-        self.logger = Logger(self.exp_dir, self.train_config["exp_name"])
+        self.logger = Logger(self.exp_dir, log_name="training_log")
 
-        # prioritized replay buffer parameters
+        # prioritized replay buffer
         self.replay_buffer_config = self.train_config["buffer"]
+        self.replay_buffer = PrioritizedReplayBuffer(
+            capacity=self.replay_buffer_config["size"],
+            min_capacity=self.replay_buffer_config["min_size"],
+            alpha=self.replay_buffer_config["per_alpha"],
+        )
 
         # learn mode parameters
         self.strategy = self.train_config["strategy"]
         if self.strategy == "online":
-            # epsilon-greedy parameters
             self.epsilon_max = self.train_config["online"]["start_epsilon"]
             self.epsilon_min = self.train_config["online"]["end_epsilon"]
             self.epsilon_decay = self.train_config["online"]["epsilon_decay"]
             self.epsilon = self.epsilon_max
-            # replay buffer
-            self.replay_buffer = PrioritizedReplayBuffer(
-                capacity=self.replay_buffer_config["size"],
-                min_capacity=self.replay_buffer_config["min_size"],
-                alpha=self.replay_buffer_config["per_alpha"],
-            )
+
+        # load offline data
         elif self.strategy == "offline":
-            # load offline data
             data_files = self.train_config["offline"]["data_files"]
             data_list = []
             for data_file in data_files:
                 data_list.extend(read_preprocess_2048_data(data_file))
             # create replay buffer from offline data
-            self.replay_buffer = PrioritizedReplayBuffer.from_data_list(
-                capacity=self.replay_buffer_config["size"],
-                min_capacity=self.replay_buffer_config["min_size"],
-                alpha=self.replay_buffer_config["per_alpha"],
-                data_list=data_list,
-            )
+            self.replay_buffer.from_data_list(data_list)
+
+        # invalid strategy
         else:
             raise ValueError(f"Invalid strategy type {self.train_config['strategy']}. Choose 'online' or 'offline'.")
 
-        self.batch_size = self.train_config["batch_size"]
+        # training parameters
         self.episode = self.train_config["train_episode"]
         self.episode_max_step = self.train_config["episode_max_step"]
+        self.batch_size = self.train_config["batch_size"]
         self.lr_config = self.train_config["learning_rate"]
         self.optimizer_cls = self._load_optimizer(self.train_config["optimizer"])
         self.optimizer = None  # will be initialized during training
         self.loss_fn = torch.nn.SmoothL1Loss(reduction="none")
         self.network_update_interval = self.train_config["network_update_interval"]
-        self.log_interval = self.train_config["log_interval"]
-        self.save_interval = self.train_config["save_interval"]
         self.from_checkpoint = self.train_config["from_checkpoint"]
         self.device = config["device"]
+        self.log_interval = self.train_config["log_interval"]
+        self.save_interval = self.train_config["save_interval"]
 
+        # log the training configuration
         self.logger.info("\n" + config.to_string() + "\n")
 
     def train(self, agent: BaseAgent, env, is_resume=False):
@@ -323,11 +322,14 @@ class DQNTrainer(Trainer):
     def _initialize_replay_buffer(self, env, agent: BaseAgent):
         """Initialize the replay buffer"""
         self.logger.info("Initializing replay buffer...")
+
         while len(self.replay_buffer) < self.replay_buffer.min_capacity:
             state, info = env.reset()
             action_mask = info["action_mask"]
             done = False
             cur_episode_step = 0
+
+            # Interact with the environment
             while not done and cur_episode_step < self.episode_max_step:
                 # Sample action from the agent
                 cur_episode_step += 1
@@ -335,9 +337,9 @@ class DQNTrainer(Trainer):
                 next_state, reward, done, _, info = env.step(action)
                 # Add experience to the replay buffer
                 self.replay_buffer.add(state, action, reward, next_state, done, action_mask)
-
                 state = next_state
                 action_mask = info["action_mask"]
+
         self.logger.info(f"Replay buffer initialized with {len(self.replay_buffer)} transitions.")
 
     def _save_checkpoint(self, agent: BaseAgent, optimizer, metadata):
