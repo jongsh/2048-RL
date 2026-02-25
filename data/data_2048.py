@@ -76,7 +76,7 @@ def _custom_save_json(episode_data, save_file):
         f.write("  ]\n}\n")
 
 
-def read_preprocess_2048_data(save_file, threshold_steps=450, shuffle=False):
+def read_preprocess_2048_data(save_file, threshold_steps=400, shuffle=False):
     """
     Read data from a specified file.
     The returned data only contains episodes with total steps >= threshold_steps.

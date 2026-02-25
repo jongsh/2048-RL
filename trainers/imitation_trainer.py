@@ -42,24 +42,23 @@ class ImitationTrainer(Trainer):
         super(ImitationTrainer, self).__init__(**kwargs)
 
         # for training
+        self.from_checkpoint = self.train_config["from_checkpoint"]
         self.optimizer_cls = self._load_optimizer(self.train_config["optimizer"])
         self.optimizer = None  # will be initialized during training
-        self.loss_fn = torch.nn.CrossEntropyLoss()
+        self.loss_fn = torch.nn.CrossEntropyLoss(reduce="none")
         self.batch_size = self.train_config["batch_size"]
         self.epoch = self.train_config["train_epoch"]
-        self.episode_max_step = self.train_config["episode_max_step"]
         self.lr_config = self.train_config["learning_rate"]
         self.device = config["device"]
-
         self.log_interval = self.train_config["log_interval"]
         self.save_interval = self.train_config["save_interval"]
-        self.from_checkpoint = self.train_config["from_checkpoint"]
 
         # load data
-        data_files = self.train_config["data_files"]
         data_list = []
-        for data_file in data_files:
-            data_list.extend(read_preprocess_2048_data(data_file))
+        for data_file in self.train_config["data_files"]:
+            data_list.extend(
+                read_preprocess_2048_data(data_file, threshold_steps=int(self.train_config["data_threshold_steps"]))
+            )
         np.random.shuffle(data_list)
         self.dataset = ImitationDataset(data_list)
         self.data_loader = torch.utils.data.DataLoader(
@@ -72,15 +71,19 @@ class ImitationTrainer(Trainer):
         )
         self.logger = Logger(self.exp_dir, self.train_config["exp_name"])
         self.logger.info("\n" + config.to_string() + "\n")
-        self.logger.info(f"human data size: {len(self.dataset)}")
+        self.logger.info(f"Training data size: {len(self.dataset)}")
 
     def train(self, agent: BaseAgent, env, is_resume=False):
         """Train the agent in the environment"""
         agent.to(self.device)
-        if is_resume:  # resume training from a checkpoint
+
+        # resume training from a checkpoint
+        if is_resume:
             assert self.from_checkpoint, "Checkpoint path must be provided for resuming training"
             optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.lr_config["eta_max"])
             metadata = self._load_checkpoint(agent, optimizer, self.from_checkpoint)
+
+        # start training from scratch
         else:
             if self.from_checkpoint and os.path.exists(self.from_checkpoint):  # load pre-trained model
                 self.logger.info(f"Loading pre-trained model from {self.from_checkpoint}")
@@ -88,10 +91,10 @@ class ImitationTrainer(Trainer):
 
             optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.lr_config["eta_max"])
             metadata = {
-                "episode": 0,
-                "cur_episode_reward": 0,
-                "cur_episode_step": 0,
-                "cur_avg_loss": 0.0,
+                "epoch": 0,
+                "cur_epoch_reward": 0,
+                "cur_epoch_step": 0,
+                "cur_epoch_avg_loss": 0.0,
                 "loss_list": [],
                 "reward_list": [],
                 "step_list": [],
@@ -104,29 +107,28 @@ class ImitationTrainer(Trainer):
             warmup_steps=warmup_steps,
             total_steps=self.lr_config["total_steps"],
             eta_min=self.lr_config["eta_min"],
-            last_epoch=metadata["episode"] - 1,
+            last_epoch=metadata["epoch"] - 1,
         )
 
         # training loop
         with tqdm(total=self.epoch, desc="Training Progress") as pbar_epoch:
             # Initialize progress bar
             pbar_epoch.set_postfix(
-                episode=metadata["episode"],
-                reward=metadata["cur_episode_reward"],
-                steps=metadata["cur_episode_step"],
-                loss=metadata["cur_avg_loss"],
+                episode=metadata["epoch"],
+                reward=metadata["cur_epoch_reward"],
+                steps=metadata["cur_epoch_step"],
+                loss=metadata["cur_epoch_avg_loss"],
             )
-            pbar_epoch.update(metadata["episode"])
+            pbar_epoch.update(metadata["epoch"])
 
             # starting training
             train_loss_list = metadata.get("loss_list")
             episode_reward_list = metadata.get("reward_list")
             episode_step_list = metadata.get("step_list")
-
-            for ep in range(metadata["episode"] + 1, self.epoch + 1):
-                cur_episode_reward = 0  # episode reward in the current epoch
-                cur_episode_step = 0  # steps in the current episode
-                cur_train_batch = 0  # total batch in the current episode
+            for ep in range(metadata["epoch"] + 1, self.epoch + 1):
+                cur_epoch_reward = 0  # epoch reward in the current epoch
+                cur_epoch_step = 0  # steps in the current epoch
+                cur_train_batch = 0  # total batch in the current epoch
                 cur_train_loss = 0.0  # current train loss
 
                 # train the agent
@@ -140,33 +142,33 @@ class ImitationTrainer(Trainer):
                 state, info = env.reset()
                 action_mask = info["action_mask"]
                 done = False
-                while not done and cur_episode_step < self.episode_max_step:
+                while not done:
                     # Sample action from the agent
-                    cur_episode_step += 1
+                    cur_epoch_step += 1
                     action = agent.select_action(state, action_mask=action_mask, method="greedy")
                     state, reward, done, _, info = env.step(action)
                     action_mask = info["action_mask"]
-                    cur_episode_reward += reward
+                    cur_epoch_reward += reward
 
                 # Update learning rate
                 scheduler.step()
 
                 # Store results for analysis
-                cur_avg_loss = cur_train_loss / cur_train_batch if cur_train_batch > 0 else 0
-                train_loss_list.append(cur_avg_loss)
-                episode_reward_list.append(cur_episode_reward)
-                episode_step_list.append(cur_episode_step)
+                cur_epoch_avg_loss = cur_train_loss / cur_train_batch if cur_train_batch > 0 else 0
+                train_loss_list.append(cur_epoch_avg_loss)
+                episode_reward_list.append(cur_epoch_reward)
+                episode_step_list.append(cur_epoch_step)
 
                 # Save training progress
-                if ep % self.save_interval == 0:
+                if ep % self.save_interval == 0 or ep == self.epoch:
                     self._save_checkpoint(
                         agent,
                         optimizer,
                         {
                             "episode": ep,
-                            "cur_episode_reward": cur_episode_reward,
-                            "cur_episode_step": cur_episode_step,
-                            "cur_avg_loss": cur_avg_loss,
+                            "cur_epoch_reward": cur_epoch_reward,
+                            "cur_epoch_step": cur_epoch_step,
+                            "cur_epoch_avg_loss": cur_epoch_avg_loss,
                             "loss_list": train_loss_list,
                             "reward_list": episode_reward_list,
                             "step_list": episode_step_list,
@@ -176,41 +178,28 @@ class ImitationTrainer(Trainer):
                 # update pbar
                 pbar_epoch.update(1)
                 pbar_epoch.set_postfix(
-                    reward=cur_episode_reward,
-                    steps=cur_episode_step,
-                    loss=cur_avg_loss,
+                    reward=cur_epoch_reward,
+                    steps=cur_epoch_step,
+                    loss=cur_epoch_avg_loss,
                     lr=scheduler.get_last_lr()[0],
                 )
 
                 # Log the current episode results
                 if ep % self.log_interval == 0 or ep == self.epoch:
                     self.logger.info(
-                        f"Episode {ep}: Learning Rate: {optimizer.param_groups[0]['lr']:.10f}, Total Reward: {cur_episode_reward:.4f}, Total Steps: {cur_episode_step}, Avg Loss: {cur_avg_loss:.4f}"
+                        f"Epoch {ep}: Learning Rate: {optimizer.param_groups[0]['lr']:.10f}, Total Reward: {cur_epoch_reward:.4f}, Total Steps: {cur_epoch_step}, Avg Loss: {cur_epoch_avg_loss:.4f}"
                     )
 
-        # save final model
+        # finish training
         self.logger.info(
             f"Training finished, saving final model to {self.exp_dir}, total episodes: {self.epoch}, total steps: {sum(episode_step_list)}, average reward: {sum(episode_reward_list)/len(episode_reward_list):.4f}"
-        )
-        self._save_checkpoint(
-            agent,
-            optimizer,
-            {
-                "episode": ep,
-                "cur_episode_reward": cur_episode_reward,
-                "cur_episode_step": cur_episode_step,
-                "avg_loss": cur_avg_loss,
-                "loss_list": train_loss_list,
-                "reward_list": episode_reward_list,
-                "step_list": episode_step_list,
-            },
         )
 
         # visualize training results
         plot_training_history(
             train_loss_list,
             label="Training Loss",
-            xlabel="Episode",
+            xlabel="Epoch",
             ylabel="Loss",
             title="Training Loss",
             save_path=os.path.join(self.exp_dir, "training_loss.jpg"),
@@ -220,7 +209,7 @@ class ImitationTrainer(Trainer):
         plot_training_history(
             episode_reward_list,
             label="Episode Reward",
-            xlabel="Episode",
+            xlabel="Epoch",
             ylabel="Reward",
             title="Episode Reward",
             save_path=os.path.join(self.exp_dir, "episode_reward.jpg"),
@@ -230,7 +219,7 @@ class ImitationTrainer(Trainer):
         plot_training_history(
             episode_step_list,
             label="Episode Steps",
-            xlabel="Episode",
+            xlabel="Epoch",
             ylabel="Steps",
             title="Episode Steps History",
             save_path=os.path.join(self.exp_dir, "episode_steps.jpg"),
@@ -240,7 +229,7 @@ class ImitationTrainer(Trainer):
 
         self.logger.info("Training completed.")
 
-    def _save_checkpoint(self, agent: BaseAgent, optimizer, metadata):
+    def _save_checkpoint(self, agent: BaseAgent, optimizer: torch.optim.Optimizer, metadata):
         """Save the checkpoint"""
         if metadata["episode"] >= self.epoch:
             save_dir = self.exp_dir
@@ -252,9 +241,9 @@ class ImitationTrainer(Trainer):
         torch.save(metadata, os.path.join(save_dir, "metadata.pth"))
         Configuration().save_config(save_dir)
 
-    def _load_checkpoint(self, agent: BaseAgent, optimizer, checkpoint_dir):
+    def _load_checkpoint(self, agent: BaseAgent, optimizer: torch.optim.Optimizer, checkpoint_dir):
         """Load the checkpoint"""
-        agent.load(checkpoint_dir)
+        agent.load(checkpoint_dir, device=self.device)
         optimizer.load_state_dict(torch.load(os.path.join(checkpoint_dir, "optimizer.pth")))
         metadata = torch.load(os.path.join(checkpoint_dir, "metadata.pth"))
         return metadata

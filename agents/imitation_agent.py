@@ -1,14 +1,11 @@
-import torch
 import os
-import math
+import torch
 import random
-import json
+import numpy as np
 
 from configs.config import Configuration
 from agents.base_agent import BaseAgent
-from models.mlp import MLPPolicy
-from models.resnet import ResNetPolicy
-from models.transformer import TransformerEncoderPolicy
+from models import MLPPolicy, ResNetPolicy, TransformerEncoderPolicy
 
 
 class ImitationAgent(BaseAgent):
@@ -38,6 +35,7 @@ class ImitationAgent(BaseAgent):
             return TransformerEncoderPolicy(config)
 
     def to(self, device):
+        self.device = device
         self.network.to(device)
 
     def get_model(self):
@@ -48,11 +46,18 @@ class ImitationAgent(BaseAgent):
         raise NotImplementedError("Imitation learning does not support action sampling")
 
     def select_action(self, state, action_mask=None, method="greedy"):
+        assert method in [
+            "random",
+            "greedy",
+            "sample",
+        ], "Invalid action selection method, must be 'random', 'greedy' or 'sample'"
+
         if method == "random":
             return random.randint(0, self.action_space - 1)
 
         state = self._torch(state, dtype=torch.int32).unsqueeze(0)
-        action_mask = self._torch(action_mask, dtype=torch.int32).unsqueeze(0)
+        if action_mask is not None:
+            action_mask = self._torch(action_mask, dtype=torch.int32).unsqueeze(0)
         action_logits = self.network(state, action_mask=action_mask)
 
         if method == "greedy":
@@ -63,9 +68,17 @@ class ImitationAgent(BaseAgent):
                 weights=action_logits.squeeze(0).tolist(),
                 k=1,
             )[0]
+
         return action
 
-    def update(self, states, actions, action_mask, optimizer, loss_fn):
+    def update(
+        self,
+        states: np.ndarray | torch.Tensor,
+        actions: np.ndarray | torch.Tensor,
+        action_mask: np.ndarray | torch.Tensor,
+        optimizer: torch.optim.Optimizer,
+        loss_fn: torch.nn.Module,
+    ):
         # convert inputs to tensors
         states = self._torch(states, dtype=torch.int32)
         actions = self._torch(actions, dtype=torch.int64)
@@ -74,7 +87,7 @@ class ImitationAgent(BaseAgent):
         # update network
         actions = actions.view(-1)  # shape (batch_size,)
         action_logits = self.network(states, action_mask=action_mask)
-        loss = loss_fn(action_logits, actions)
+        loss = loss_fn(action_logits, actions).mean()
         optimizer.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=10)
@@ -86,12 +99,13 @@ class ImitationAgent(BaseAgent):
         os.makedirs(dir_path, exist_ok=True)
         model_path = os.path.join(dir_path, "model.pth")
         torch.save(self.network.state_dict(), model_path)
-        print(f"Model saved to {model_path}")
 
-    def load(self, dir_path):
+    def load(self, dir_path, device="cpu"):
+        """Load the agent's model from the specified path"""
         model_path = os.path.join(dir_path, "model.pth")
         assert os.path.exists(model_path), f"Model path {model_path} does not exist!"
-        self.network.load_state_dict(torch.load(model_path))
+        self.network.load_state_dict(torch.load(model_path), map_location=device, weights_only=True)
+        self.network.to(device)
 
 
 if __name__ == "__main__":

@@ -53,7 +53,7 @@ def main():
     args, unknown = parser.parse_known_args()
     assert args.train + args.test + args.retrain == 1, "Please specify exactly one mode: --train, --test, or --retrain"
     config_path = args.config
-    config = Configuration(config_path=config_path, cli_args=unknown)
+    config = Configuration(config_path=config_path, cli_args=unknown, from_scratch=args.train)
     component_config = config["components"]
 
     # train model from scratch

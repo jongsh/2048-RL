@@ -9,6 +9,7 @@ class WarmupCosineLR(_LRScheduler):
     """Learning rate scheduler with linear warmup and cosine annealing."""
 
     def __init__(self, optimizer: torch.optim.Optimizer, warmup_steps, total_steps, eta_min=0, last_epoch=-1):
+        super(WarmupCosineLR, self).__init__(optimizer, last_epoch)
         self.warmup_steps = warmup_steps
         self.total_steps = total_steps
         self.eta_min = eta_min
@@ -16,7 +17,6 @@ class WarmupCosineLR(_LRScheduler):
             for group in optimizer.param_groups:
                 initial_lr = group["lr"]
                 group.setdefault("initial_lr", initial_lr)
-        super(WarmupCosineLR, self).__init__(optimizer, last_epoch)
 
     def get_lr(self):
         step = self.last_epoch + 1

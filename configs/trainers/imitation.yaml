@@ -4,20 +4,21 @@ public:
 
 # Imitation Learning Trainer
 exp_name: transformer-small-imitation
+output_dir: "outputs/"
+from_checkpoint: "" # Path to load a checkpoint
 data_files: ["data/human_2048.json", "data/agent_2048.json"] # Demonstration data files
-batch_size: 32
+data_threshold_steps: 550
 train_epoch: &imitation_train_epoch 2000
-episode_max_step: 5000
+batch_size: 32
 
+# Learning rate schedule
 learning_rate:
   warmup_rate: 0.1
   total_steps: *imitation_train_epoch
   eta_min: 1.0e-7
-  eta_max: 2.0e-6
+  eta_max: 1.0e-4
 
+# Other training settings
 optimizer: AdamW
 log_interval: 10
 save_interval: 100
-output_dir: "outputs/"
-from_checkpoint: "" # Path to load a checkpoint
-device: cuda:0

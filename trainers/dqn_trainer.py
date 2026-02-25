@@ -342,7 +342,7 @@ class DQNTrainer(Trainer):
 
     def _load_checkpoint(self, agent: BaseAgent, optimizer: torch.optim.Optimizer, checkpoint_dir: str):
         """Load the checkpoint"""
-        agent.load(checkpoint_dir)
+        agent.load(checkpoint_dir, device=self.device)
         optimizer.load_state_dict(torch.load(os.path.join(checkpoint_dir, "optimizer.pth")))
         metadata = torch.load(os.path.join(checkpoint_dir, "metadata.pth"))
         return metadata
