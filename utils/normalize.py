@@ -1,4 +1,5 @@
 import numpy as np
+from torch import Tensor
 
 
 class RunningNormalizer:
@@ -12,6 +13,8 @@ class RunningNormalizer:
         self.initialized = False
 
     def update(self, x):
+        if isinstance(x, Tensor):
+            x = x.cpu().numpy()
         x = np.array(x, dtype=np.float32)
         batch_mean = np.mean(x)
         batch_var = np.var(x)

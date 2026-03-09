@@ -18,11 +18,11 @@ position_embedding:
   method: "add" # "add" or "concat"
 
 residual_block:
-  num_blocks: 3
+  num_blocks: 4
   kernel_size: 3
   stride: 1
   padding: 1
-  hidden_dim: 64
-  
+  hidden_dim: 128
+
 activation: "gelu"
 output_dim: *action_dim

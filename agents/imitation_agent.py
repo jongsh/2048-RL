@@ -25,7 +25,7 @@ class ImitationAgent(BaseAgent):
         # other configurations
         self.action_space = self.agent_config["action_space"]
 
-    def _build_network(self, config: Configuration = None):
+    def _build_network(self, config: Configuration = None) -> torch.nn.Module:
         model_name = config["components"]["model"]
         if model_name == "mlp":
             return MLPPolicy(config)
@@ -104,7 +104,7 @@ class ImitationAgent(BaseAgent):
         """Load the agent's model from the specified path"""
         model_path = os.path.join(dir_path, "model.pth")
         assert os.path.exists(model_path), f"Model path {model_path} does not exist!"
-        self.network.load_state_dict(torch.load(model_path), map_location=device, weights_only=True)
+        self.network.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
         self.network.to(device)
 
 

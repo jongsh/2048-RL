@@ -3,23 +3,27 @@ from omegaconf import OmegaConf
 
 class Configuration:
     def __init__(self, config_path="configs/config.yaml", cli_args=None, from_scratch=True):
-        if from_scratch:  # Load configurations from multiple sources
+        self.config = None
+        # Load a pre-saved configuration
+        if not from_scratch:
+            self.config = OmegaConf.load(config_path)
+
+        # Load configurations from multiple sources
+        if not self.config or any(key not in self.config for key in ["env", "agent", "model", "trainer"]):
             self.config = OmegaConf.load(config_path)
             self.config["env"] = OmegaConf.load(self.config["paths"]["env"])
             self.config["agent"] = OmegaConf.load(self.config["paths"]["agent"])
             self.config["model"] = OmegaConf.load(self.config["paths"]["model"])
             self.config["trainer"] = OmegaConf.load(self.config["paths"]["trainer"])
-            # Override config with command-line arguments
-            if cli_args:
-                dotlist = [arg[2:] for arg in cli_args if arg.startswith("--")]
-                cli_conf = OmegaConf.from_dotlist(dotlist)
-                self.config = OmegaConf.merge(self.config, cli_conf)
 
-            if self._validate():
-                print("Configuration is valid.")
+        # Override config with command-line arguments
+        if cli_args:
+            dotlist = [arg[2:] for arg in cli_args if arg.startswith("--")]
+            cli_conf = OmegaConf.from_dotlist(dotlist)
+            self.config = OmegaConf.merge(self.config, cli_conf)
 
-        else:  # Load a pre-saved configuration
-            self.config = OmegaConf.load(config_path)
+        if self._validate():
+            print("Configuration is valid.")
 
     def _validate(self):
         """validate the configuration structure"""

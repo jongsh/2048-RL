@@ -17,15 +17,10 @@ class DQNTrainer(Trainer):
     def __init__(self, config: Configuration = None, **kwargs):
         # load training configuration
         config = config if config else Configuration()
+        self.config = config
         self.train_config = config["trainer"]
-        assert self.train_config["exp_name"], "Experiment name must be provided"
+        assert config["exp_name"], "Experiment name must be provided"
         super(DQNTrainer, self).__init__(**kwargs)
-
-        # setup experiment directory and logger
-        self.exp_dir = os.path.join(
-            self.train_config["output_dir"], self.train_config["exp_name"], datetime.now().strftime("%Y%m%d_%H%M%S")
-        )
-        self.logger = Logger(self.exp_dir, log_name="training_log")
 
         # prioritized replay buffer
         self.replay_buffer_config = self.train_config["buffer"]
@@ -58,6 +53,7 @@ class DQNTrainer(Trainer):
 
         # training parameters
         self.device = config["device"]
+        self.from_checkpoint = self.train_config["from_checkpoint"]
         self.episode = self.train_config["train_episode"]
         self.episode_max_step = self.train_config["episode_max_step"]
         self.batch_size = self.train_config["batch_size"]
@@ -66,25 +62,38 @@ class DQNTrainer(Trainer):
         self.optimizer = None  # will be initialized during training
         self.loss_fn = torch.nn.SmoothL1Loss(reduction="none")
         self.network_update_interval = self.train_config["network_update_interval"]
-        self.from_checkpoint = self.train_config["from_checkpoint"]
         self.log_interval = self.train_config["log_interval"]
         self.save_interval = self.train_config["save_interval"]
 
-        # log the training configuration
-        self.logger.info("\n" + config.to_string() + "\n")
-
-    def train(self, agent: BaseAgent, env, is_resume=False):
-        """Train the agent in the environment"""
+    def train(self, agent: BaseAgent, env, resume_dir: str = None):
+        """
+        Train the agent in the environment
+        Args:
+            agent: the RL agent to be trained
+            env: the environment for training
+            resume_dir: the checkpoint path for resuming training, if None, training will start from scratch
+        """
         agent.to(self.device)
 
         # resume training from a checkpoint if specified
-        if is_resume:
-            assert self.from_checkpoint, "Checkpoint path must be provided for resuming training"
+        if resume_dir:
+            # setup logger
+            self.exp_dir = os.path.join(resume_dir, "..")
+            self.logger = Logger(self.exp_dir, log_name="training_log")
+            # load model and optimizer from checkpoint
             optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.lr_config["eta_max"])
-            metadata = self._load_checkpoint(agent, optimizer, self.from_checkpoint)
+            metadata = self._load_checkpoint(agent, optimizer, resume_dir)
 
         # start training from scratch
         else:
+            # setup logger
+            self.exp_dir = os.path.join(
+                self.train_config["output_dir"], self.config["exp_name"], datetime.now().strftime("%Y%m%d_%H%M%S")
+            )
+            self.logger = Logger(self.exp_dir, log_name="training_log")
+            self.logger.info("\n" + self.config.to_string() + "\n")
+
+            # initialize model and optimizer
             if self.from_checkpoint and os.path.exists(self.from_checkpoint):  # load pre-trained model
                 self.logger.info(f"Loading pre-trained model from {self.from_checkpoint}")
                 agent.load(self.from_checkpoint)

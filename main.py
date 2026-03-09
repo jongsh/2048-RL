@@ -47,12 +47,18 @@ def main():
     parser.add_argument("--train", action="store_true", help="Flag to indicate training mode")
     parser.add_argument("--test", action="store_true", help="Flag to indicate testing mode")
     parser.add_argument("--retrain", action="store_true", help="Flag to indicate retraining mode")
-    parser.add_argument("--checkpoint", type=str, default=None, help="Path to checkpoint for testing")
+    parser.add_argument(
+        "--checkpoint", type=str, default=None, help="Path to checkpoint for testing or retraining mode"
+    )
 
     # Parse arguments
     args, unknown = parser.parse_known_args()
     assert args.train + args.test + args.retrain == 1, "Please specify exactly one mode: --train, --test, or --retrain"
-    config_path = args.config
+    if args.test or args.retrain:
+        assert args.checkpoint, "Please provide a checkpoint path using --checkpoint for testing or retraining mode."
+        assert os.path.exists(args.checkpoint), f"Checkpoint path {args.checkpoint} does not exist!"
+
+    config_path = args.config if args.train else args.checkpoint + "/config.yaml"
     config = Configuration(config_path=config_path, cli_args=unknown, from_scratch=args.train)
     component_config = config["components"]
 
@@ -61,14 +67,14 @@ def main():
         agent = get_agent(component_config["agent"])(config=config)
         env = get_env(component_config["env"])(config=config)
         trainer = get_trainer(component_config["trainer"])(config=config)
-        trainer.train(agent, env, is_resume=False)
+        trainer.train(agent, env, resume_dir=None)
 
     # retrain model
     elif args.retrain:
         agent = get_agent(component_config["agent"])(config=config)
         env = get_env(component_config["env"])(config=config)
         trainer = get_trainer(component_config["trainer"])(config=config)
-        trainer.train(agent, env, is_resume=True)
+        trainer.train(agent, env, resume_dir=args.checkpoint)
 
     # evaluate model
     elif args.test:

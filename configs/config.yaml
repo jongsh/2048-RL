@@ -1,10 +1,11 @@
 seed: 2025
-device: cuda:1
+device: cuda:0
+exp_name: dqn_test
 
 components:
   env: game2048
+  model: resnet
   agent: dqn
-  model: mlp
   trainer: dqn
 
 paths:

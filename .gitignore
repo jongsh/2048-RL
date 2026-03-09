@@ -168,3 +168,6 @@ main/trained_models_cnn_mps/*
 # store files
 *.dat
 outputs/
+
+# AGENT
+AGENTS.md

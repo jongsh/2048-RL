@@ -16,7 +16,7 @@ class BaseAgent(ABC):
         pass
 
     def _torch(self, x, dtype):
-        """Convert input to a PyTorch tensor."""
+        """Convert input to a PyTorch tensor with the specified dtype and move it to the agent's device."""
         if isinstance(x, torch.Tensor):
             return x.clone().detach().to(dtype=dtype, device=self.device)
         else:

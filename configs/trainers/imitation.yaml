@@ -3,13 +3,12 @@ public:
   action_dim: &action_dim 4
 
 # Imitation Learning Trainer
-exp_name: transformer-small-imitation
 output_dir: "outputs/"
-from_checkpoint: "" # Path to load a checkpoint
+from_checkpoint: "" # Initial model checkpoint for training, different from resume checkpoint
 data_files: ["data/human_2048.json", "data/agent_2048.json"] # Demonstration data files
 data_threshold_steps: 550
 train_epoch: &imitation_train_epoch 2000
-batch_size: 32
+batch_size: 128
 
 # Learning rate schedule
 learning_rate:

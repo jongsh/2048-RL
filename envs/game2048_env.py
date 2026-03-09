@@ -110,22 +110,28 @@ class Game2048Env(gym.Env):
         merge_reward = 0.0
         score_gain = new_info["score"] - old_info["score"]
         if score_gain > 0:
-            merge_reward += math.log2(score_gain + 1) * 0.5
+            merge_reward += math.log2(score_gain + 1) * 0.15
 
         # 2. space reward
         empty_before = np.sum(old_grid == 0)
         empty_after = np.sum(new_grid == 0)
-        space_reward = float((empty_after - empty_before) * 0.05)
+        space_reward = float((empty_after - empty_before) * 0.1)
 
         # 3. penalize invalid action
-        invalid_reward = -1.0 if new_info["moved"] == False else 0.0
+        invalid_reward = -0.5 if new_info["moved"] == False else 0.0
 
         # 4. max tile reward
         old_max_tile = old_info["max_tile"]
         new_max_tile = new_info["max_tile"]
         max_tile_reward = 0.0
         if new_max_tile > old_max_tile:
-            max_tile_reward += math.sqrt(new_max_tile) * 0.5
+            max_tile_reward += (math.log2(new_max_tile) - math.log2(old_max_tile)) * 4
+
+        # 5. smoothness reward
+        smooth_reward = (self._smoothness(new_grid) - self._smoothness(old_grid)) * 1.0
+
+        # 6. monotonicity reward
+        mono_reward = (self._monotonicity(new_grid) - self._monotonicity(old_grid)) * 1.5
 
         # info
         info = {
@@ -133,32 +139,48 @@ class Game2048Env(gym.Env):
             "space_reward": space_reward,
             "invalid_reward": invalid_reward,
             "max_tile_reward": max_tile_reward,
+            "smooth_reward": smooth_reward,
+            "mono_reward": mono_reward,
         }
 
-        return merge_reward + space_reward + invalid_reward + max_tile_reward, info
+        return merge_reward + space_reward + invalid_reward + max_tile_reward + smooth_reward + mono_reward, info
 
     def _monotonicity(self, grid):
         """calculate monotonicity score"""
-        mono_score = 0
-        for row in grid:
-            mono_score += sum(max(0, row[i] - row[i + 1]) for i in range(len(row) - 1))
-        for col in grid.T:
-            mono_score += sum(max(0, col[i] - col[i + 1]) for i in range(len(col) - 1))
-        max_possible = np.max(grid) * (self.env_config["grid_size"] - 1) * 2 + 1e-5
-        return 1.0 - mono_score / max_possible
+        # use log to scale the grid value
+        grid_array = np.array(grid, dtype=np.float32)
+        log_grid = np.log2(np.where(grid_array == 0, 1, grid_array))
+
+        # calculate monotonicity penalty of horizontal direction
+        diffs_h = log_grid[:, :-1] - log_grid[:, 1:]
+        mono_increase_penalty_h = np.sum(diffs_h[diffs_h > 0])
+        mono_decrease_penalty_h = -np.sum(diffs_h[diffs_h < 0])
+
+        # calculate monotonicity penalty of vertical direction
+        diffs_v = log_grid[:-1, :] - log_grid[1:, :]
+        mono_increase_penalty_v = np.sum(diffs_v[diffs_v > 0])
+        mono_decrease_penalty_v = -np.sum(diffs_v[diffs_v < 0])
+
+        # combine horizontal and vertical monotonicity
+        mono_penalty = min(mono_increase_penalty_h, mono_decrease_penalty_h) + min(
+            mono_increase_penalty_v, mono_decrease_penalty_v
+        )
+        max_penalty = np.max(log_grid) * (self.env_config["grid_size"] - 1) * 2 + 1e-5
+        mono_score = 1.0 - mono_penalty / max_penalty
+        return mono_score
 
     def _smoothness(self, grid):
         """calculate smoothness score (penalize adjacent tiles with large differences)"""
-        smooth_score = 0
-        for i in range(self.env_config["grid_size"]):
-            for j in range(self.env_config["grid_size"]):
-                val = grid[i][j]
-                for dx, dy in [(1, 0), (0, 1)]:
-                    ni, nj = i + dx, j + dy
-                    if ni < self.env_config["grid_size"] and nj < self.env_config["grid_size"]:
-                        smooth_score += abs(val - grid[ni][nj])
-        max_diff = np.max(grid) * 2 * (self.env_config["grid_size"] ** 2) + 1e-5
-        return 1.0 - smooth_score / max_diff
+        # use log to scale the grid value
+        grid_array = np.array(grid, dtype=np.float32)
+        log_grid = np.log2(np.where(grid_array == 0, 1, grid_array))
+
+        # calculate smoothness penalty by summing absolute differences of adjacent tiles
+        diffs_h = np.abs(log_grid[:, :-1] - log_grid[:, 1:])
+        diffs_v = np.abs(log_grid[:-1, :] - log_grid[1:, :])
+        max_diff = np.max(log_grid) * 2 * (self.env_config["grid_size"] ** 2) + 1e-5
+        smooth_score = 1.0 - (np.sum(diffs_h) + np.sum(diffs_v)) / max_diff
+        return smooth_score
 
 
 if __name__ == "__main__":

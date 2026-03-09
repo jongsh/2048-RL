@@ -35,21 +35,22 @@ class ImitationTrainer(Trainer):
 
     def __init__(self, config: Configuration = None, **kwargs):
         config = config if config else Configuration()
+        self.config = config
         self.train_config = config["trainer"]
-        assert self.train_config["exp_name"], "Experiment name must be provided"
+        assert config["exp_name"], "Experiment name must be provided"
         assert self.train_config["data_files"], "Data file path must be provided for imitation learning"
 
         super(ImitationTrainer, self).__init__(**kwargs)
 
         # for training
+        self.device = config["device"]
         self.from_checkpoint = self.train_config["from_checkpoint"]
         self.optimizer_cls = self._load_optimizer(self.train_config["optimizer"])
         self.optimizer = None  # will be initialized during training
-        self.loss_fn = torch.nn.CrossEntropyLoss(reduce="none")
+        self.loss_fn = torch.nn.CrossEntropyLoss(reduction="none")
         self.batch_size = self.train_config["batch_size"]
         self.epoch = self.train_config["train_epoch"]
         self.lr_config = self.train_config["learning_rate"]
-        self.device = config["device"]
         self.log_interval = self.train_config["log_interval"]
         self.save_interval = self.train_config["save_interval"]
 
@@ -65,26 +66,35 @@ class ImitationTrainer(Trainer):
             self.dataset, batch_size=self.batch_size, shuffle=True, drop_last=True
         )
 
-        # logger
-        self.exp_dir = os.path.join(
-            self.train_config["output_dir"], self.train_config["exp_name"], datetime.now().strftime("%Y%m%d_%H%M%S")
-        )
-        self.logger = Logger(self.exp_dir, self.train_config["exp_name"])
-        self.logger.info("\n" + config.to_string() + "\n")
-        self.logger.info(f"Training data size: {len(self.dataset)}")
-
-    def train(self, agent: BaseAgent, env, is_resume=False):
-        """Train the agent in the environment"""
+    def train(self, agent: BaseAgent, env, resume_dir: str = None):
+        """
+        Train the agent in the environment
+        Args:
+            agent: the RL agent to be trained
+            env: the environment for training
+            resume_dir: the checkpoint path for resuming training, if None, training will start from scratch
+        """
         agent.to(self.device)
 
         # resume training from a checkpoint
-        if is_resume:
-            assert self.from_checkpoint, "Checkpoint path must be provided for resuming training"
+        if resume_dir:
+            # setup logger
+            self.exp_dir = os.path.join(resume_dir, "..")
+            self.logger = Logger(self.exp_dir, log_name="training_log")
+            # load model and optimizer from checkpoint
             optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.lr_config["eta_max"])
-            metadata = self._load_checkpoint(agent, optimizer, self.from_checkpoint)
+            metadata = self._load_checkpoint(agent, optimizer, resume_dir)
 
         # start training from scratch
         else:
+            # setup logger
+            self.exp_dir = os.path.join(
+                self.train_config["output_dir"], self.config["exp_name"], datetime.now().strftime("%Y%m%d_%H%M%S")
+            )
+            self.logger = Logger(self.exp_dir, log_name="training_log")
+            self.logger.info("\n" + self.config.to_string() + "\n")
+            self.logger.info(f"Training data size: {len(self.dataset)}")
+            # initialize model and optimizer
             if self.from_checkpoint and os.path.exists(self.from_checkpoint):  # load pre-trained model
                 self.logger.info(f"Loading pre-trained model from {self.from_checkpoint}")
                 agent.load(self.from_checkpoint)
@@ -114,7 +124,7 @@ class ImitationTrainer(Trainer):
         with tqdm(total=self.epoch, desc="Training Progress") as pbar_epoch:
             # Initialize progress bar
             pbar_epoch.set_postfix(
-                episode=metadata["epoch"],
+                epoch=metadata["epoch"],
                 reward=metadata["cur_epoch_reward"],
                 steps=metadata["cur_epoch_step"],
                 loss=metadata["cur_epoch_avg_loss"],
@@ -165,7 +175,7 @@ class ImitationTrainer(Trainer):
                         agent,
                         optimizer,
                         {
-                            "episode": ep,
+                            "epoch": ep,
                             "cur_epoch_reward": cur_epoch_reward,
                             "cur_epoch_step": cur_epoch_step,
                             "cur_epoch_avg_loss": cur_epoch_avg_loss,
@@ -184,7 +194,7 @@ class ImitationTrainer(Trainer):
                     lr=scheduler.get_last_lr()[0],
                 )
 
-                # Log the current episode results
+                # Log the current epoch results
                 if ep % self.log_interval == 0 or ep == self.epoch:
                     self.logger.info(
                         f"Epoch {ep}: Learning Rate: {optimizer.param_groups[0]['lr']:.10f}, Total Reward: {cur_epoch_reward:.4f}, Total Steps: {cur_epoch_step}, Avg Loss: {cur_epoch_avg_loss:.4f}"
@@ -192,7 +202,7 @@ class ImitationTrainer(Trainer):
 
         # finish training
         self.logger.info(
-            f"Training finished, saving final model to {self.exp_dir}, total episodes: {self.epoch}, total steps: {sum(episode_step_list)}, average reward: {sum(episode_reward_list)/len(episode_reward_list):.4f}"
+            f"Training finished, saving final model to {self.exp_dir}, total epoch: {self.epoch}, total steps: {sum(episode_step_list)}, average reward: {sum(episode_reward_list)/len(episode_reward_list):.4f}"
         )
 
         # visualize training results
@@ -231,10 +241,10 @@ class ImitationTrainer(Trainer):
 
     def _save_checkpoint(self, agent: BaseAgent, optimizer: torch.optim.Optimizer, metadata):
         """Save the checkpoint"""
-        if metadata["episode"] >= self.epoch:
+        if metadata["epoch"] >= self.epoch:
             save_dir = self.exp_dir
         else:
-            save_dir = os.path.join(self.exp_dir, f"checkpoint_{metadata['episode']}")
+            save_dir = os.path.join(self.exp_dir, f"checkpoint_{metadata['epoch']}")
         os.makedirs(save_dir, exist_ok=True)
         agent.save(save_dir)
         torch.save(optimizer.state_dict(), os.path.join(save_dir, "optimizer.pth"))

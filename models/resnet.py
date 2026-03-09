@@ -92,7 +92,6 @@ class ResNetBase(nn.Module):
         padding = self.model_config["residual_block"]["padding"]
         activation = self.model_config["activation"]
         kernel_size = self.model_config["residual_block"]["kernel_size"]
-
         self.residual_blocks = nn.Sequential(
             *[
                 ResidualBlock(
