@@ -1,9 +1,0 @@
-gymnasium
-numpy
-pygame
-PyYAML
-tqdm
-matplotlib
-torch
-torchinfo
-omegaconf

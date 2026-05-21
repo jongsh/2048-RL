@@ -30,12 +30,23 @@
 ```
 
 ## 环境要求
-- Python 3.9+
+- 本项目使用 `uv` 管理 Python 环境与通用依赖。
+- Python 3.10+
 - 推荐 CUDA 环境（CPU 也可运行）
 
-安装依赖：
+创建环境并安装通用依赖：
 ```bash
-pip install -r requirements.txt
+uv sync
+```
+
+`torch` 不写入项目通用依赖，需按本机 CUDA / CPU 环境单独安装。请优先参考 PyTorch 官网给出的当前命令；例如 CUDA 11.8 环境可使用：
+```bash
+uv pip install torch --index-url https://download.pytorch.org/whl/cu118
+```
+
+如果需要同步安装 PyTorch 生态包：
+```bash
+uv pip install torch==2.7.1 --index-url https://download.pytorch.org/whl/cu118
 ```
 
 ## 快速开始
