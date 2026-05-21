@@ -29,7 +29,7 @@ buffer:
   update_interval: 1
 
 # training parameters
-batch_size: 128
+batch_size: 256
 episode_max_step: 2000
 learning_rate:
   warmup_rate: 0.05

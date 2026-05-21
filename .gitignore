@@ -167,7 +167,10 @@ main/trained_models_cnn_mps/*
 
 # store files
 *.dat
+
+# custom
 outputs/
 
 # AGENT
 AGENTS.md
+.ai/
