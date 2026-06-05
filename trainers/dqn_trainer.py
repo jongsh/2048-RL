@@ -53,7 +53,7 @@ class DQNTrainer(Trainer):
 
         # training parameters
         self.device = config["device"]
-        self.from_checkpoint = self.train_config["from_checkpoint"]
+        self.init_checkpoint = self.train_config["init_checkpoint"]
         self.episode = self.train_config["train_episode"]
         self.episode_max_step = self.train_config["episode_max_step"]
         self.batch_size = self.train_config["batch_size"]
@@ -94,9 +94,9 @@ class DQNTrainer(Trainer):
             self.logger.info("\n" + self.config.to_string() + "\n")
 
             # initialize model and optimizer
-            if self.from_checkpoint and os.path.exists(self.from_checkpoint):  # load pre-trained model
-                self.logger.info(f"Loading pre-trained model from {self.from_checkpoint}")
-                agent.load(self.from_checkpoint)
+            if self.init_checkpoint and os.path.exists(self.init_checkpoint):  # load pre-trained model
+                self.logger.info(f"Loading pre-trained model from {self.init_checkpoint}")
+                agent.load(self.init_checkpoint)
 
             optimizer = self.optimizer_cls(agent.get_model().parameters(), lr=self.lr_config["eta_max"])
             metadata = {

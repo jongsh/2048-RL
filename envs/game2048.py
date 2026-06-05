@@ -1,13 +1,13 @@
 import os
+
+os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
+
 import pygame
 import random
 import json
-
 from copy import deepcopy
 
 from configs.config import Configuration
-
-os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 
 
 class Game2048:

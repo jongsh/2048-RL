@@ -5,6 +5,18 @@ from torch import nn
 from torch.nn import functional as F
 
 
+class SwiGLU(nn.Module):
+    """SwiGLU activation as a module"""
+
+    def __init__(self, input_dim, hidden_dim):
+        super().__init__()
+        self.fc1 = nn.Linear(input_dim, hidden_dim, bias=True)
+        self.fc2 = nn.Linear(input_dim, hidden_dim, bias=True)
+
+    def forward(self, x):
+        return self.fc1(x) * F.gelu(self.fc2(x))
+
+
 class ActivationFunction(nn.Module):
     """Activation function module"""
 
@@ -20,7 +32,6 @@ class ActivationFunction(nn.Module):
             self.activation = nn.Sigmoid()
         elif activation == "silu":
             self.activation = nn.SiLU()
-
         else:
             raise ValueError(f"Unsupported activation function: {activation}")
 
@@ -31,15 +42,21 @@ class ActivationFunction(nn.Module):
 class FeedForward(nn.Module):
     """A simple feed-forward neural network"""
 
-    def __init__(self, input_dim, hidden_dim, output_dim, num_layers, activation, bias=False):
-        super(FeedForward, self).__init__()
+    def __init__(self, input_dim, hidden_dim, output_dim, num_layers, activation, bias=True):
+        super().__init__()
         layers = []
         for i in range(num_layers):
-            if i == 0:
-                layers.append(nn.Linear(input_dim, hidden_dim, bias=bias))
+            if activation.lower() == "swiglu":
+                if i == 0:
+                    layers.append(SwiGLU(input_dim, hidden_dim))
+                else:
+                    layers.append(SwiGLU(hidden_dim, hidden_dim))
             else:
-                layers.append(nn.Linear(hidden_dim, hidden_dim, bias=bias))
-            layers.append(ActivationFunction(activation))
+                if i == 0:
+                    layers.append(nn.Linear(input_dim, hidden_dim, bias=bias))
+                else:
+                    layers.append(nn.Linear(hidden_dim, hidden_dim, bias=bias))
+                layers.append(ActivationFunction(activation))
         layers.append(nn.Linear(hidden_dim, output_dim, bias=bias))
         self.network = nn.Sequential(*layers)
 
@@ -51,8 +68,7 @@ class FeedForward(nn.Module):
                     nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
-        x = self.network(x)
-        return x
+        return self.network(x)
 
 
 class MultiHeadAttention(nn.Module):

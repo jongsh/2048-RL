@@ -1,4 +1,7 @@
 import os
+
+os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
+
 import argparse
 import time
 import pygame
@@ -50,6 +53,7 @@ def main():
     parser.add_argument(
         "--checkpoint", type=str, default=None, help="Path to checkpoint for testing or retraining mode"
     )
+    parser.add_argument("--config-only", action="store_true", help="Flag to only print the config and exit")
 
     # Parse arguments
     args, unknown = parser.parse_known_args()
@@ -58,9 +62,17 @@ def main():
         assert args.checkpoint, "Please provide a checkpoint path using --checkpoint for testing or retraining mode."
         assert os.path.exists(args.checkpoint), f"Checkpoint path {args.checkpoint} does not exist!"
 
+    # Build configuration
     config_path = args.config if args.train else args.checkpoint + "/config.yaml"
     config = Configuration(config_path=config_path, cli_args=unknown, from_scratch=args.train)
     component_config = config["components"]
+
+    # Print config and exit if --config-only is set
+    if args.config_only:
+        print(f"Configuration: {config_path}")
+        print("Mode: " + "Training" if args.train else "Testing" if args.test else "Retraining")
+        print(config.to_string())
+        return
 
     # train model from scratch
     if args.train:

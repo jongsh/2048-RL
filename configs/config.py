@@ -1,4 +1,4 @@
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig, ListConfig
 
 
 class Configuration:
@@ -52,21 +52,22 @@ class Configuration:
         """Return the configuration as a formatted string"""
 
         def format_value(v, indent=2):
-            if isinstance(v, dict):
-                lines = [""]
+            if isinstance(v, DictConfig) or isinstance(v, dict):
+                tmp_lines = [""]
                 for k2, v2 in v.items():
                     sub_str = format_value(v2, indent + 2)
-                    lines.append(" " * indent + f"{k2}: {sub_str}")
-                return "\n".join(lines)
-            elif isinstance(v, list):
+                    if k2 in ["env", "agent", "model", "trainer"] and indent == 0:
+                        tmp_lines.append("\n" + " " * indent + f"[{k2}]{sub_str}")
+                    else:
+                        tmp_lines.append(" " * indent + f"{k2}: {sub_str}")
+                return "\n".join(tmp_lines)
+
+            elif isinstance(v, ListConfig) or isinstance(v, list):
                 return "[" + ", ".join(map(str, v)) + "]"
             else:
                 return str(v)
 
-        lines = ["=" * 10 + " Configuration Summary " + "=" * 10, ""]
-        for section, content in self.config.items():
-            lines.append(f"[{section}]")
-            lines.append(format_value(content, indent=2))
-            lines.append("")
-        lines.append("=" * 40)
-        return "\n".join(lines)
+        config_str = "=" * 10 + " Configuration Summary " + "=" * 10
+        config_str += format_value(self.config, indent=0)
+        config_str += "\n" + "=" * 40
+        return config_str
