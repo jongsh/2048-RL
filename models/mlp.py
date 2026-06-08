@@ -41,7 +41,7 @@ class MLPBase(torch.nn.Module):
         self.network = FeedForward(
             input_dim=input_dim,
             hidden_dim=self.model_config["feed_forward"]["hidden_dim"],
-            output_dim=self.model_config["feed_forward"]["output_dim"],
+            output_dim=self.model_config["feed_forward"]["hidden_dim"],
             num_layers=self.model_config["feed_forward"]["num_layers"],
             activation=self.model_config["feed_forward"]["activation"],
             bias=self.model_config["feed_forward"]["bias"],
@@ -65,9 +65,14 @@ class MLPPolicy(MLPBase):
     def __init__(self, config: Configuration = None):
         config = config if config else Configuration()
         super(MLPPolicy, self).__init__(config)
+        self.policy_layer = nn.Linear(
+            in_features=self.model_config["feed_forward"]["hidden_dim"],
+            out_features=self.model_config["feed_forward"]["output_dim"],
+        )
 
     def forward(self, x, action_mask=None):
-        action_logits = super(MLPPolicy, self).forward(x)
+        state_features = super(MLPPolicy, self).forward(x)  # (B, hidden_dim)
+        action_logits = self.policy_layer(state_features)  # (B, num_actions)
         if action_mask is not None:
             action_logits = action_logits.masked_fill(action_mask == 0, -1e9)
         action_probs = F.softmax(action_logits, dim=-1)
@@ -80,12 +85,42 @@ class MLPValue(MLPBase):
     def __init__(self, config: Configuration = None):
         config = config if config else Configuration()
         super(MLPValue, self).__init__(config)
+        self.value_layer = nn.Linear(
+            in_features=self.model_config["feed_forward"]["hidden_dim"],
+            out_features=self.model_config["feed_forward"]["output_dim"],
+        )
 
     def forward(self, x, action_mask=None):
-        value = super(MLPValue, self).forward(x)
+        state_features = super(MLPValue, self).forward(x)  # (B, hidden_dim)
+        action_values = self.value_layer(state_features)  # (B, 1)
         if action_mask is not None:
-            value = value.masked_fill(action_mask == 0, -1e9)
-        return value
+            action_values = action_values.masked_fill(action_mask == 0, -1e9)
+        return action_values
+
+
+class MLPDuelingValue(MLPBase):
+    """MLP model for dueling value function"""
+
+    def __init__(self, config: Configuration = None):
+        config = config if config else Configuration()
+        super(MLPDuelingValue, self).__init__(config)
+        self.state_value_layer = nn.Linear(
+            in_features=self.model_config["feed_forward"]["hidden_dim"],
+            out_features=1,
+        )
+        self.advantage_layer = nn.Linear(
+            in_features=self.model_config["feed_forward"]["hidden_dim"],
+            out_features=self.model_config["feed_forward"]["output_dim"],
+        )
+
+    def forward(self, x, action_mask=None):
+        state_features = super(MLPDuelingValue, self).forward(x)  # (B, hidden_dim)
+        state_value = self.state_value_layer(state_features)  # (B, 1)
+        advantage = self.advantage_layer(state_features)  # (B, num_actions)
+        q_values = state_value + advantage - advantage.mean(dim=1, keepdim=True)  # (B, num_actions)
+        if action_mask is not None:
+            q_values = q_values.masked_fill(action_mask == 0, -1e9)
+        return q_values
 
 
 if __name__ == "__main__":

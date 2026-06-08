@@ -48,6 +48,24 @@ class Game2048:
         }
         return info
 
+    def snapshot(self):
+        """Capture the current game state for later restore."""
+        return {
+            "grid": deepcopy(self.grid),
+            "score": self.score,
+        }
+
+    def restore(self, snapshot):
+        """Restore the game state from a previously captured snapshot."""
+        self.grid = deepcopy(snapshot["grid"])
+        self.score = snapshot["score"]
+
+        return {
+            "grid": deepcopy(self.grid),
+            "score": self.score,
+            "max_tile": max(max(row) for row in self.grid),
+        }
+
     # take action and return (done, info)
     def step(self, action, strict=False):
         direction = self.direction_map.get(action, None)

@@ -3,6 +3,7 @@ import math
 import time
 import json
 from datetime import datetime
+from copy import deepcopy
 import gymnasium as gym
 import pygame
 import random
@@ -40,6 +41,29 @@ class Game2048Env(gym.Env):
         obs = np.log2(np.where(grid_array == 0, 1, grid_array)).astype(np.int32)
         action_mask = self._action_mask(self.info["grid"])
         self.info["action_mask"] = action_mask
+        return obs, self.info
+
+    def snapshot(self):
+        """Capture the current environment state for later restore."""
+        return {
+            "game": self.game.snapshot(),
+            "info": deepcopy(self.info),
+            "done": self.done,
+        }
+
+    def restore(self, snapshot):
+        """Restore the environment state from a previously captured snapshot."""
+        restored_info = self.game.restore(snapshot["game"])
+        self.info = deepcopy(snapshot["info"])
+        self.done = snapshot["done"]
+
+        # Restore game-derived fields, then rebuild the current valid action mask.
+        self.info["grid"] = restored_info["grid"]
+        self.info["score"] = restored_info["score"]
+        self.info["max_tile"] = restored_info["max_tile"]
+        self.info["action_mask"] = self._action_mask(self.info["grid"])
+        grid_array = np.array(self.game.grid, dtype=np.float32)
+        obs = np.log2(np.where(grid_array == 0, 1, grid_array)).astype(np.int32)
         return obs, self.info
 
     def step(self, action):

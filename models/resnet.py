@@ -106,10 +106,6 @@ class ResNetBase(nn.Module):
         )
         # Output layer
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(
-            self.model_config["residual_block"]["hidden_dim"],
-            self.model_config["output_dim"],
-        )
 
     def forward(self, x):
         # x: (B, H, W)
@@ -126,7 +122,6 @@ class ResNetBase(nn.Module):
         x = self.residual_blocks(x)  # (B, D, H, W)
         x = self.avg_pool(x)  # (B, D, 1, 1)
         x = x.view(B, -1)  # (B, D)
-        x = self.fc(x)  # (B, output_dim)
         return x
 
 
@@ -136,9 +131,14 @@ class ResNetPolicy(ResNetBase):
     def __init__(self, config: Configuration = None):
         config = config if config else Configuration()
         super(ResNetPolicy, self).__init__(config)
+        self.policy_layer = nn.Linear(
+            in_features=self.model_config["residual_block"]["hidden_dim"],
+            out_features=self.model_config["output_dim"],
+        )
 
     def forward(self, x, action_mask=None):
-        action_logits = super(ResNetPolicy, self).forward(x)  # (B, output_dim)
+        state_features = super(ResNetPolicy, self).forward(x)  # (B, hidden_dim)
+        action_logits = self.policy_layer(state_features)  # (B, output_dim)
         if action_mask is not None:
             action_logits = action_logits.masked_fill(action_mask == 0, -1e9)
         action_probs = F.softmax(action_logits, dim=-1)
@@ -151,12 +151,42 @@ class ResNetValue(ResNetBase):
     def __init__(self, config: Configuration = None):
         config = config if config else Configuration()
         super(ResNetValue, self).__init__(config)
+        self.value_layer = nn.Linear(
+            in_features=self.model_config["residual_block"]["hidden_dim"],
+            out_features=self.model_config["output_dim"],
+        )
 
     def forward(self, x, action_mask=None):
-        value = super(ResNetValue, self).forward(x)  # (B, output_dim)
+        state_features = super(ResNetValue, self).forward(x)  # (B, hidden_dim)
+        action_values = self.value_layer(state_features)  # (B, output_dim)
         if action_mask is not None:
-            value = value.masked_fill(action_mask == 0, -1e9)
-        return value
+            action_values = action_values.masked_fill(action_mask == 0, -1e9)
+        return action_values
+
+
+class ResNetDuelingValue(ResNetBase):
+    """ResNet model for dueling value function"""
+
+    def __init__(self, config: Configuration = None):
+        config = config if config else Configuration()
+        super(ResNetDuelingValue, self).__init__(config)
+        self.state_value_layer = nn.Linear(
+            in_features=self.model_config["residual_block"]["hidden_dim"],
+            out_features=1,
+        )
+        self.advantage_layer = nn.Linear(
+            in_features=self.model_config["residual_block"]["hidden_dim"],
+            out_features=self.model_config["output_dim"],
+        )
+
+    def forward(self, x, action_mask=None):
+        state_features = super(ResNetDuelingValue, self).forward(x)  # (B, hidden_dim)
+        state_value = self.state_value_layer(state_features)  # (B, 1)
+        advantage = self.advantage_layer(state_features)  # (B, output_dim)
+        q_values = state_value + advantage - advantage.mean(dim=1, keepdim=True)  # (B, output_dim)
+        if action_mask is not None:
+            q_values = q_values.masked_fill(action_mask == 0, -1e9)
+        return q_values
 
 
 if __name__ == "__main__":

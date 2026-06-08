@@ -90,8 +90,6 @@ class TransformerEncoderBase(nn.Module):
                 for _ in range(self.model_config["block"]["num_layers"])
             ]
         )
-        # output layer
-        self.output_layer = nn.Linear(self.embed_dim, self.model_config["output_dim"])
 
     def forward(self, x):
         # embedding and positional encoding
@@ -103,9 +101,8 @@ class TransformerEncoderBase(nn.Module):
         for layer in self.layers:
             x = layer(x)  # (B, L, D)
 
-        # global average pooling and output layer
+        # global average pooling
         x = x.mean(dim=1)  # (B, D)
-        x = self.output_layer(x)  # (B, output_dim)
         return x
 
 
@@ -115,9 +112,14 @@ class TransformerEncoderPolicy(TransformerEncoderBase):
     def __init__(self, config: Configuration = None):
         config = config if config else Configuration()
         super(TransformerEncoderPolicy, self).__init__(config)
+        self.policy_layer = nn.Linear(
+            in_features=self.embed_dim,
+            out_features=self.model_config["output_dim"],
+        )
 
     def forward(self, x, action_mask=None):
-        action_logits = super(TransformerEncoderPolicy, self).forward(x)  # (B, output_dim)
+        state_features = super(TransformerEncoderPolicy, self).forward(x)  # (B, embed_dim)
+        action_logits = self.policy_layer(state_features)  # (B, output_dim)
         if action_mask is not None:
             action_logits = action_logits.masked_fill(action_mask == 0, -1e9)
         action_probs = F.softmax(action_logits, dim=-1)
@@ -130,12 +132,42 @@ class TransformerEncoderValue(TransformerEncoderBase):
     def __init__(self, config: Configuration = None):
         config = config if config else Configuration()
         super(TransformerEncoderValue, self).__init__(config)
+        self.value_layer = nn.Linear(
+            in_features=self.embed_dim,
+            out_features=self.model_config["output_dim"],
+        )
 
     def forward(self, x, action_mask=None):
-        value = super(TransformerEncoderValue, self).forward(x)  # (B, output_dim)
+        state_features = super(TransformerEncoderValue, self).forward(x)  # (B, embed_dim)
+        action_values = self.value_layer(state_features)  # (B, output_dim)
         if action_mask is not None:
-            value = value.masked_fill(action_mask == 0, -1e9)
-        return value
+            action_values = action_values.masked_fill(action_mask == 0, -1e9)
+        return action_values
+
+
+class TransformerEncoderDuelingValue(TransformerEncoderBase):
+    """Transformer encoder model for dueling value"""
+
+    def __init__(self, config: Configuration = None):
+        config = config if config else Configuration()
+        super(TransformerEncoderDuelingValue, self).__init__(config)
+        self.state_value_layer = nn.Linear(
+            in_features=self.embed_dim,
+            out_features=1,
+        )
+        self.advantage_layer = nn.Linear(
+            in_features=self.embed_dim,
+            out_features=self.model_config["output_dim"],
+        )
+
+    def forward(self, x, action_mask=None):
+        state_features = super(TransformerEncoderDuelingValue, self).forward(x)  # (B, embed_dim)
+        state_value = self.state_value_layer(state_features)  # (B, 1)
+        advantage = self.advantage_layer(state_features)  # (B, output_dim)
+        q_values = state_value + advantage - advantage.mean(dim=1, keepdim=True)  # (B, output_dim)
+        if action_mask is not None:
+            q_values = q_values.masked_fill(action_mask == 0, -1e9)
+        return q_values
 
 
 if __name__ == "__main__":
