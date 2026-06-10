@@ -4,7 +4,7 @@ exp_name: dqn_test
 
 components:
   env: game2048
-  model: resnet
+  model: mlp
   agent: dqn
   trainer: dqn
 

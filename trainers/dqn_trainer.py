@@ -1,6 +1,6 @@
 import torch
 import os
-
+import numpy as np
 from datetime import datetime
 from tqdm import tqdm
 
@@ -136,6 +136,7 @@ class DQNTrainer(Trainer):
             pbar_epoch.update(metadata["episode"])
 
             # starting training
+            global_steps = metadata.get("global_steps", 0)
             episode_train_loss_list = metadata.get("loss_list", [])
             episode_reward_list = metadata.get("reward_list", [])
             episode_step_list = metadata.get("step_list", [])
@@ -149,17 +150,16 @@ class DQNTrainer(Trainer):
 
                 # update agent from online interaction data
                 if self.strategy == "online":
-                    self.epsilon = max(
-                        self.epsilon_min,
-                        self.epsilon_max - (self.epsilon_max - self.epsilon_min) * (ep - 1) / self.epsilon_decay,
-                    )
-
                     # interact with the environment to collect data and update agent
                     state, info = env.reset()
                     done = False
                     while not done and cur_episode_step < self.episode_max_step:
                         # Sample action from the agent
                         cur_episode_step += 1
+                        global_steps += 1
+                        self.epsilon = self.epsilon_min + (self.epsilon_max - self.epsilon_min) * np.exp(
+                            -global_steps / self.epsilon_decay
+                        )
                         action_mask = info["action_mask"]
                         action = agent.sample_action(state, action_mask, self.epsilon)
                         next_state, reward, done, _, info = env.step(action)
@@ -238,6 +238,7 @@ class DQNTrainer(Trainer):
                         optimizer,
                         {
                             "episode": ep,
+                            "global_steps": global_steps,
                             "cur_episode_reward": cur_episode_reward,
                             "cur_episode_step": cur_episode_step,
                             "cur_episode_max_tile": cur_episode_max_tile,
@@ -253,16 +254,16 @@ class DQNTrainer(Trainer):
                 pbar_epoch.update(1)
                 pbar_epoch.set_postfix(
                     reward=cur_episode_reward,
-                    steps=cur_episode_step,
-                    # loss=avg_loss,
-                    lr=scheduler.get_last_lr()[0],
                     max_tile=cur_episode_max_tile,
+                    loss=cur_episode_loss,
+                    epsilon=self.epsilon if self.strategy == "online" else "N/A",
+                    lr=scheduler.get_last_lr()[0],
                 )
 
                 # Log the current episode results
                 if ep % self.log_interval == 0 or ep == self.episode:
                     self.logger.info(
-                        f"Episode {ep}, Learning Rate: {optimizer.param_groups[0]['lr']:.10f}, Reward/Avg Reward: {cur_episode_reward:.4f}/{sum(episode_reward_list[-self.log_interval:])/self.log_interval:.4f}, Steps/Avg Steps: {cur_episode_step}/{sum(episode_step_list[-self.log_interval:])/self.log_interval:.4f}, Loss/Avg Loss: {cur_episode_loss:.4f}/{sum(episode_train_loss_list[-self.log_interval:])/self.log_interval:.4f}, Max Tile/Avg Max Tile: {cur_episode_max_tile}/{sum(episode_max_tile_list[-self.log_interval:])/self.log_interval:.4f}"
+                        f"Episode {ep}, Learning Rate: {optimizer.param_groups[0]['lr']:.10f}, Reward/Avg Reward: {cur_episode_reward:.4f}/{sum(episode_reward_list[-self.log_interval:])/self.log_interval:.4f}, , Max Tile/Avg Max Tile: {cur_episode_max_tile}/{sum(episode_max_tile_list[-self.log_interval:])/self.log_interval:.4f}, Steps/Avg Steps: {cur_episode_step}/{sum(episode_step_list[-self.log_interval:])/self.log_interval:.4f}, Loss/Avg Loss: {cur_episode_loss:.4f}/{sum(episode_train_loss_list[-self.log_interval:])/self.log_interval:.4f}"
                     )
 
         # save final model

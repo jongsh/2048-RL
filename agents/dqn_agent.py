@@ -5,7 +5,14 @@ import numpy as np
 
 from configs.config import Configuration
 from agents.base_agent import BaseAgent
-from models import MLPValue, ResNetValue, TransformerEncoderValue
+from models import (
+    MLPValue,
+    ResNetValue,
+    TransformerEncoderValue,
+    MLPDuelingValue,
+    ResNetDuelingValue,
+    TransformerEncoderDuelingValue,
+)
 from utils.normalize import RunningNormalizer
 
 
@@ -42,11 +49,13 @@ class DQNAgent(BaseAgent):
     def _build_network(self, config: Configuration = None):
         model_name = config["components"]["model"]
         if model_name == "mlp":
-            return MLPValue(config)
+            return MLPDuelingValue(config)
         elif model_name == "resnet":
-            return ResNetValue(config)
+            return ResNetDuelingValue(config)
         elif model_name == "transformer":
-            return TransformerEncoderValue(config)
+            return TransformerEncoderDuelingValue(config)
+        else:
+            raise ValueError(f"Unsupported model type: {model_name}")
 
     def to(self, device):
         self.device = device
@@ -145,7 +154,10 @@ class DQNAgent(BaseAgent):
         q_value = q_values[range(states.size(0)), actions]
         with torch.no_grad():
             if self.target_network is not None:
+                # double Q-learning: action selection from q_network, action evaluation from target_network
+                next_actions = self.q_network(next_states, next_action_mask).argmax(dim=-1, keepdim=True)
                 next_q_values = self.target_network(next_states, next_action_mask)
+                next_q_values = next_q_values.gather(1, next_actions)
             else:
                 next_q_values = self.q_network(next_states, next_action_mask)
             max_next_q_values = next_q_values.max(dim=-1)[0]

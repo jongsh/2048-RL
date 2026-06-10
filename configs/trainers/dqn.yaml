@@ -10,9 +10,9 @@ strategy: online
 
 # online training parameters
 online:
-  start_epsilon: 1.0
-  end_epsilon: 0.05
-  epsilon_decay: 6000
+  start_epsilon: 0.95
+  end_epsilon: 0.001
+  epsilon_decay: 50000
 
 # offline training parameters
 offline:
@@ -21,7 +21,7 @@ offline:
 # replay buffer
 buffer:
   size: 100000
-  min_size: 5000
+  min_size: 3000
   use_per: true
   per_alpha: 0.6
   per_beta_start: 0.4
@@ -29,14 +29,14 @@ buffer:
   update_interval: 1
 
 # training parameters
-batch_size: 128
+batch_size: 256
 episode_max_step: 2000
 learning_rate:
-  warmup_rate: 0.02
+  warmup_rate: 0.05
   total_steps: *dqn_train_episode
-  eta_min: 1.0e-6
-  eta_max: 1.0e-4
+  eta_min: 1.0e-5
+  eta_max: 2.0e-4
 optimizer: AdamW
-network_update_interval: 4
+network_update_interval: 1
 log_interval: 100
 save_interval: 1000
